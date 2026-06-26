@@ -2,7 +2,7 @@
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
+ENV PORT=8090
 
 WORKDIR /app
 
@@ -13,6 +13,6 @@ COPY examples ./examples
 
 RUN pip install --no-cache-dir .
 
-EXPOSE 8080
+EXPOSE 8090
 
-CMD ["sh", "-c", "uvicorn peat_product_scorer.web_app:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uvicorn peat_product_scorer.web_app:app --host 0.0.0.0 --port ${PORT:-8090}"]

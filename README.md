@@ -90,10 +90,10 @@ tests/
 Run the local web service:
 
 ```powershell
-uvicorn peat_product_scorer.web_app:app --host 127.0.0.1 --port 8080
+uvicorn peat_product_scorer.web_app:app --host 127.0.0.1 --port 8090
 ```
 
-Open `http://127.0.0.1:8080` to score a supermarket URL or paste a product JSON payload.
+Open `http://127.0.0.1:8090` to score a supermarket URL or paste a product JSON payload.
 
 API endpoints:
 
@@ -104,18 +104,17 @@ API endpoints:
 Example API request:
 
 ```powershell
-Invoke-WebRequest -Uri http://127.0.0.1:8080/api/score -Method POST -ContentType application/json -Body '{"url":"https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"}'
+Invoke-WebRequest -Uri http://127.0.0.1:8090/api/score -Method POST -ContentType application/json -Body '{"url":"https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"}'
 ```
 
 ## Deployment Shape
 
 The project includes a nan.builders-friendly web service structure:
 
-- `Dockerfile` runs `uvicorn peat_product_scorer.web_app:app` on `${PORT:-8080}`.
+- `Dockerfile` runs `uvicorn peat_product_scorer.web_app:app` on `${PORT:-8090}`.
 - `Procfile` supports Python buildpack-style platforms that inject `$PORT`.
 - `requirements.txt` installs the local package and dependencies.
 - `/health` is ready for platform health checks.
 
 If the deployment platform stores the knowledge rules outside the repository, set `PEAT_KNOWLEDGE_PATH` to the YAML file path. Otherwise the included `data/knowledge/ray_peat_rules.yaml` is used.
-
 
