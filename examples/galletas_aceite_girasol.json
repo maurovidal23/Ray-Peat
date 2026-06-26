@@ -1,0 +1,23 @@
+{
+  "name": "Galletas con aceite de girasol ejemplo",
+  "source": "Example",
+  "brand": "Demo",
+  "ingredients": [
+    "harina de trigo",
+    "azucar",
+    "aceite de girasol",
+    "jarabe de glucosa",
+    "gasificantes",
+    "lecitina de soja",
+    "sal"
+  ],
+  "nutrition_per_100g": {
+    "Valor energetico": "485 kcal",
+    "Grasas": "22 g",
+    "de las cuales saturadas": "2,4 g",
+    "Hidratos de carbono": "64 g",
+    "de los cuales azucares": "24 g",
+    "Proteinas": "6,5 g",
+    "Sal": "0,75 g"
+  }
+}

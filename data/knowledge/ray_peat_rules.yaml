@@ -1,0 +1,83 @@
+﻿version: 1
+base_score: 50
+notes:
+  - "Heuristic interpretation of Ray Peat-style nutrition writing, not medical advice."
+  - "Scores are explainable product filters, not health claims."
+rules:
+  - id: dairy_positive
+    label: Dairy or milk-based food
+    delta: 14
+    terms: ["leche", "queso", "yogur", "yoghurt", "nata", "caseina"]
+    detail: "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats."
+
+  - id: fruit_sugar_positive
+    label: Fruit or juice sugar
+    delta: 10
+    terms: ["zumo", "fruta", "naranja", "uva", "manzana", "miel", "azucar", "sacarosa"]
+    detail: "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework."
+
+  - id: gelatin_collagen_positive
+    label: Gelatin or collagen
+    delta: 8
+    terms: ["gelatina", "colageno", "colágeno"]
+    detail: "Gelatin and collagen are favorable because this framework values glycine-rich protein."
+
+  - id: seed_oils_negative
+    label: Seed or vegetable oil
+    delta: -24
+    terms: ["aceite de girasol", "girasol", "aceite refinado de girasol", "aceite refinado alto oleico", "aceite de soja", "aceite de colza", "aceite de canola", "aceite vegetal", "aceite de maiz", "aceite de maíz"]
+    detail: "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats."
+
+  - id: soy_negative
+    label: Soy ingredient
+    delta: -14
+    terms: ["soja", "proteina de soja", "lecitina de soja"]
+    detail: "Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives."
+
+  - id: gums_negative
+    label: Gums or carrageenan
+    delta: -12
+    terms: ["carragenano", "carragenina", "goma guar", "goma xantana", "goma garrofin", "goma garrofín"]
+    detail: "Gums and carrageenan are penalized because this framework is cautious about gut-irritating thickeners."
+
+  - id: phosphate_additives_negative
+    label: Phosphate additive
+    delta: -10
+    terms: ["fosfato", "difosfato", "polifosfato", "e338", "e339", "e340", "e341", "e450", "e451", "e452"]
+    detail: "Phosphate additives are penalized because this framework favors a higher calcium-to-phosphorus balance."
+
+  - id: fortified_iron_negative
+    label: Added iron
+    delta: -12
+    terms: ["hierro", "fumarato ferroso", "sulfato ferroso", "pirofosfato ferrico", "pirofosfato férrico"]
+    detail: "Added iron is penalized because this framework is cautious about excess iron fortification."
+
+  - id: high_sugar_positive
+    label: Meaningful sugar content
+    delta: 6
+    nutrient: sugars_g
+    min: 8
+    detail: "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils."
+
+  - id: high_protein_positive
+    label: Meaningful protein content
+    delta: 5
+    nutrient: protein_g
+    min: 8
+    detail: "A meaningful protein content is favorable, especially when the ingredient source is dairy or collagen."
+
+  - id: high_fat_without_context_negative
+    label: High total fat
+    delta: -7
+    nutrient: fat_g
+    min: 20
+    detail: "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously."
+
+  - id: calcium_phosphorus_positive
+    label: Good calcium-to-phosphorus ratio
+    delta: 12
+    ratio:
+      numerator: calcium_mg
+      denominator: phosphorus_mg
+      min: 1.0
+    detail: "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework."

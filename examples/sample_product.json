@@ -1,0 +1,16 @@
+{
+  "name": "Yogur natural azucarado ejemplo",
+  "source": "Example",
+  "brand": "Demo",
+  "ingredients": "Leche pasteurizada, azucar, fermentos lacticos",
+  "nutrition_per_100g": {
+    "Valor energetico": "95 kcal",
+    "Grasas": "3,2 g",
+    "Hidratos de carbono": "13 g",
+    "Azucares": "12 g",
+    "Proteinas": "3,8 g",
+    "Sal": "0,12 g",
+    "Calcio": "125 mg",
+    "Fosforo": "95 mg"
+  }
+}

@@ -1,0 +1,133 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ray Peat Product Scorer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Spanish supermarket nutrition evaluator</p>
+            <h1>Ray Peat Product Scorer</h1>
+          </div>
+          <div id="serviceStatus" class="status-pill">Checking service</div>
+        </header>
+
+        <div class="main-grid">
+          <section class="control-panel" aria-label="Score controls">
+            <div class="segmented" role="tablist" aria-label="Input mode">
+              <button id="urlMode" class="segment active" type="button">URL</button>
+              <button id="jsonMode" class="segment" type="button">JSON</button>
+            </div>
+
+            <form id="scoreForm" class="input-stack">
+              <label id="urlGroup" class="field-group">
+                <span>Product URL</span>
+                <input
+                  id="productUrl"
+                  name="productUrl"
+                  type="url"
+                  autocomplete="off"
+                  placeholder="https://tienda.mercadona.es/product/..."
+                />
+              </label>
+
+              <label id="jsonGroup" class="field-group hidden">
+                <span>Product JSON</span>
+                <textarea id="productJson" rows="10" spellcheck="false">{
+  "name": "Leche entera",
+  "source": "Manual",
+  "ingredients": "Leche entera",
+  "nutrition": {
+    "grasas": "3.6 g",
+    "azucares": "4.7 g",
+    "proteinas": "3.1 g"
+  }
+}</textarea>
+              </label>
+
+              <button id="scoreButton" class="primary-button" type="submit">Score product</button>
+              <p id="message" class="message" role="status"></p>
+            </form>
+
+            <section class="examples" aria-label="Example products">
+              <div class="section-heading">
+                <h2>Live examples</h2>
+                <span id="connectorCount">0 connectors</span>
+              </div>
+              <div id="examplesList" class="examples-list"></div>
+            </section>
+          </section>
+
+          <section class="result-panel" aria-live="polite">
+            <div id="emptyState" class="empty-state">
+              <h2>Ready to evaluate</h2>
+              <p>Paste a product URL from Mercadona, DIA, Alcampo, Consum, or Eroski.</p>
+            </div>
+
+            <article id="resultView" class="result-view hidden">
+              <div class="score-row">
+                <div id="scoreGauge" class="score-gauge" style="--score: 0">
+                  <span id="scoreValue">0</span>
+                  <small>/100</small>
+                </div>
+                <div class="score-copy">
+                  <span id="scoreBand" class="band">mixed</span>
+                  <h2 id="productName"></h2>
+                  <p id="scoreComment"></p>
+                </div>
+              </div>
+
+              <div class="meta-grid">
+                <div>
+                  <span>Source</span>
+                  <strong id="productSource">-</strong>
+                </div>
+                <div>
+                  <span>Brand</span>
+                  <strong id="productBrand">-</strong>
+                </div>
+                <div>
+                  <span>Scraped</span>
+                  <strong id="scrapedAt">-</strong>
+                </div>
+              </div>
+
+              <section class="details-grid">
+                <div class="details-section">
+                  <div class="section-heading">
+                    <h3>Reasons</h3>
+                    <span id="reasonCount">0 rules</span>
+                  </div>
+                  <div id="reasonsList" class="reasons-list"></div>
+                </div>
+
+                <div class="details-section">
+                  <div class="section-heading">
+                    <h3>Nutrition per 100g</h3>
+                    <span id="nutritionCount">0 values</span>
+                  </div>
+                  <div id="nutritionList" class="nutrition-list"></div>
+                </div>
+              </section>
+
+              <section class="ingredients-section">
+                <div class="section-heading">
+                  <h3>Ingredients</h3>
+                  <a id="sourceLink" href="#" target="_blank" rel="noreferrer">Open source</a>
+                </div>
+                <p id="ingredientsText"></p>
+              </section>
+            </article>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>
