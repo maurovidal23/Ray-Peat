@@ -64,16 +64,25 @@ def health() -> dict[str, Any]:
 @app.get("/api/connectors")
 def connectors() -> dict[str, Any]:
     verified = {"Mercadona", "DIA", "Alcampo", "Consum", "Eroski"}
+    partial = {"Bon Preu / Esclat"}
     return {
         "connectors": [
             {
                 "name": adapter.name,
                 "domains": list(adapter.domains),
-                "status": "verified" if adapter.name in verified else "fallback",
+                "status": _connector_status(adapter.name, verified=verified, partial=partial),
             }
             for adapter in ADAPTERS
         ]
     }
+
+
+def _connector_status(name: str, *, verified: set[str], partial: set[str]) -> str:
+    if name in verified:
+        return "verified"
+    if name in partial:
+        return "partial"
+    return "fallback"
 
 
 @app.get("/api/articles")

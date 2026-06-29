@@ -141,7 +141,8 @@ async function loadConnectors() {
     const response = await fetch("/api/connectors");
     const data = await response.json();
     const verified = data.connectors.filter((connector) => connector.status === "verified").length;
-    els.connectorCount.textContent = `${verified} verified`;
+    const partial = data.connectors.filter((connector) => connector.status === "partial").length;
+    els.connectorCount.textContent = partial ? `${verified} verified, ${partial} partial` : `${verified} verified`;
     els.serviceStatus.textContent = "Service online";
     els.serviceStatus.classList.add("ok");
   } catch (error) {

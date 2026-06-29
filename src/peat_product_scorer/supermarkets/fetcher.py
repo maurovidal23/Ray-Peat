@@ -43,6 +43,9 @@ def fetch_product(url: str, timeout: int = 20) -> Product:
     if "supermercado.eroski.es" in url and "/productdetail/" in url:
         return _fetch_eroski_product(url, timeout=timeout)
 
+    if "bonpreuesclat.cat" in url:
+        return _fetch_bonpreu_product(url, timeout=timeout)
+
     response = requests.get(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     source = supermarket_name_for_url(url)
@@ -176,7 +179,11 @@ def _fetch_alcampo_product(url: str, timeout: int) -> Product:
         source="Alcampo",
         url=url,
         brand=brand,
-        description=characteristics.get("Denominaci?n legal del alimento") or generic.description,
+        description=(
+            characteristics.get("Denominaci\u00f3n legal del alimento")
+            or characteristics.get("Denominaci?n legal del alimento")
+            or generic.description
+        ),
         ingredient_text=ingredients,
         ingredient_source="alcampo.sections.Ingredientes" if ingredients else None,
         nutrition_raw=nutrition,
@@ -276,6 +283,115 @@ def _fetch_eroski_product(url: str, timeout: int) -> Product:
         raw={"json_ld": generic.raw.get("json_ld"), "eroski_nutrition": nutrition},
         fallback=generic,
     )
+
+
+def _fetch_bonpreu_product(url: str, timeout: int) -> Product:
+    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response.raise_for_status()
+    state = _load_bonpreu_initial_state(response.text)
+    entity = _bonpreu_entity_from_state(state, url)
+    if not entity:
+        return parse_product_page(response.text, url=url, source="Bon Preu / Esclat")
+    return _product_from_bonpreu_entity(entity, url=url)
+
+
+def _load_bonpreu_initial_state(html: str) -> dict[str, Any]:
+    marker = "window.__INITIAL_STATE__"
+    marker_index = html.find(marker)
+    if marker_index == -1:
+        return {}
+    start = html.find("{", marker_index)
+    if start == -1:
+        return {}
+    try:
+        state, _ = json.JSONDecoder().raw_decode(html[start:])
+    except json.JSONDecodeError:
+        return {}
+    return state if isinstance(state, dict) else {}
+
+
+def _bonpreu_entity_from_state(state: dict[str, Any], url: str) -> dict[str, Any]:
+    entities = (((state.get("data") or {}).get("products") or {}).get("productEntities") or {})
+    if not isinstance(entities, dict):
+        return {}
+
+    uuid_match = re.search(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        url,
+        flags=re.IGNORECASE,
+    )
+    if uuid_match:
+        product_id = uuid_match.group(0).lower()
+        for key, entity in entities.items():
+            if str(key).lower() == product_id or str(entity.get("productId") or "").lower() == product_id:
+                return entity
+
+    numeric_ids = set(re.findall(r"(?<!\d)\d{4,}(?!\d)", url))
+    if numeric_ids:
+        for entity in entities.values():
+            if str(entity.get("retailerProductId") or "") in numeric_ids:
+                return entity
+
+    product_groups = (
+        (((state.get("data") or {}).get("search") or {}).get("catalogue") or {}).get("data") or {}
+    ).get("productGroups") or []
+    for group in product_groups:
+        if group.get("type") == "featured":
+            continue
+        for product_id in group.get("products") or []:
+            entity = entities.get(product_id)
+            if entity:
+                return entity
+
+    for entity in entities.values():
+        return entity if isinstance(entity, dict) else {}
+    return {}
+
+
+def _product_from_bonpreu_entity(entity: dict[str, Any], *, url: str) -> Product:
+    image = entity.get("image") if isinstance(entity.get("image"), dict) else {}
+    category_path = entity.get("categoryPath") if isinstance(entity.get("categoryPath"), list) else []
+    size = entity.get("size") if isinstance(entity.get("size"), dict) else {}
+    description_parts = [str(part) for part in category_path if part]
+    if size.get("value"):
+        description_parts.append(str(size["value"]))
+
+    ingredient_text = _bonpreu_text_value(entity, ("ingredient", "ingrediente", "ingredients", "ingredientes", "composicio", "composicion"))
+    nutrition_raw = _bonpreu_nutrition(entity)
+
+    return _build_product(
+        name=entity.get("name") or image.get("description") or "Unknown Bon Preu product",
+        source="Bon Preu / Esclat",
+        url=url,
+        brand=entity.get("brand"),
+        description=" | ".join(description_parts) or image.get("description"),
+        ingredient_text=ingredient_text,
+        ingredient_source="bonpreu.initial_state" if ingredient_text else None,
+        nutrition_raw=nutrition_raw,
+        raw={"bonpreu_initial_state_product": entity},
+    )
+
+
+def _bonpreu_text_value(value: object, markers: tuple[str, ...]) -> str:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            normalized_key = _normalize_compare(str(key))
+            if any(marker in normalized_key for marker in markers) and isinstance(item, str):
+                return item
+            nested = _bonpreu_text_value(item, markers)
+            if nested:
+                return nested
+    if isinstance(value, list):
+        for item in value:
+            nested = _bonpreu_text_value(item, markers)
+            if nested:
+                return nested
+    return ""
+
+
+def _bonpreu_nutrition(entity: dict[str, Any]) -> dict[str, object]:
+    nutrition = entity.get("nutrition") or entity.get("nutritionalInfo") or entity.get("nutritional_info")
+    return _flatten_nutrition(nutrition) if nutrition else {}
 
 
 def _eroski_feature_text(soup: BeautifulSoup, title: str) -> str:

@@ -22,6 +22,15 @@ ADAPTERS = (
     SupermarketAdapter("Consum", ("consum.es",)),
     SupermarketAdapter("El Corte Ingles", ("elcorteingles.es",)),
     SupermarketAdapter("Eroski", ("eroski.es",)),
+    SupermarketAdapter("Bon Preu / Esclat", ("bonpreuesclat.cat", "compraonline.bonpreuesclat.cat")),
+    SupermarketAdapter("Aldi ES", ("aldi.es",)),
+    SupermarketAdapter("Spar ES", ("spar.es",)),
+    SupermarketAdapter("Hipercor", ("hipercor.es",)),
+    SupermarketAdapter("Gadis Online", ("gadisonline.com",)),
+    SupermarketAdapter("Coviran", ("coviransupermercados.com",)),
+    SupermarketAdapter("Caprabo", ("caprabo.com",)),
+    SupermarketAdapter("Condis", ("condis.es",)),
+    SupermarketAdapter("Froiz", ("froiz.es",)),
 )
 
 
