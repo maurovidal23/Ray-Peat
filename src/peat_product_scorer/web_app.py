@@ -61,6 +61,11 @@ def health() -> dict[str, Any]:
     }
 
 
+@app.get("/api/version")
+def api_version() -> dict[str, str]:
+    return {"version": __version__, "build": "dia-pdp-api-20260629"}
+
+
 @app.get("/api/connectors")
 def connectors() -> dict[str, Any]:
     verified = {"Mercadona", "DIA", "Alcampo", "Consum", "Eroski"}
