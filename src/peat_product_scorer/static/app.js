@@ -340,9 +340,13 @@ async function submitScore(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await parseJsonResponse(response);
+    let data = await parseJsonResponse(response);
     if (!response.ok) {
-      throw new Error(data.detail || "The product could not be scored.");
+      if (mode === "url" && isDiaProductUrl(payload.url)) {
+        data = await scoreDiaUrlInBrowser(payload.url);
+      } else {
+        throw new Error(data.detail || "The product could not be scored.");
+      }
     }
     renderResult(data);
     setMessage("Score ready.");
@@ -351,6 +355,88 @@ async function submitScore(event) {
   } finally {
     setLoading(false);
   }
+}
+
+function isDiaProductUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.hostname.endsWith("dia.es") && url.pathname.includes("/p/");
+  } catch (error) {
+    return false;
+  }
+}
+
+async function scoreDiaUrlInBrowser(productUrl) {
+  const url = new URL(productUrl);
+  const productId = diaProductIdFromPath(url.pathname);
+  if (!productId) throw new Error("DIA product URL could not be read.");
+
+  const apiUrl = new URL(`https://www.dia.es/api/v1/pdp-back/${encodeURIComponent(productId)}`);
+  apiUrl.searchParams.set("path", url.pathname);
+  const diaResponse = await fetch(apiUrl.toString(), { headers: { Accept: "application/json" } });
+  const diaData = await parseJsonResponse(diaResponse);
+  if (!diaResponse.ok || !diaData.product) {
+    throw new Error("DIA product data could not be loaded.");
+  }
+
+  const scoreResponse = await fetch("/api/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product: productPayloadFromDia(diaData.product, productUrl) }),
+  });
+  const scoreData = await parseJsonResponse(scoreResponse);
+  if (!scoreResponse.ok) {
+    throw new Error(scoreData.detail || "The DIA product could not be scored.");
+  }
+  return scoreData;
+}
+
+function diaProductIdFromPath(pathname) {
+  const match = pathname.match(/\/p\/([^/?#]+)/);
+  return match ? match[1] : null;
+}
+
+function productPayloadFromDia(product, productUrl) {
+  const title = product.primary_info?.title || product.sku_id || "Unknown DIA product";
+  return {
+    name: title,
+    source: "DIA",
+    url: productUrl,
+    brand: diaBrandFromTitle(title),
+    description: product.product_info?.product || product.product_info?.subtitle || null,
+    ingredients: stripHtml(product.ingredients?.text || ""),
+    nutrition: diaNutritionPayload(product.nutritional_info || {}),
+  };
+}
+
+function diaNutritionPayload(nutritionalInfo) {
+  const values = nutritionalInfo.nutritional_values || {};
+  const nutrition = {};
+  if (values.energy_value !== undefined && values.energy_value !== null) {
+    nutrition["Valor energetico"] = values.energy_value;
+  }
+  (values.values || []).forEach((item) => {
+    if (item.title) nutrition[item.title] = item.value_per_100_g ?? item.value;
+    (item.items || []).forEach((child) => {
+      if (child.title) nutrition[child.title] = child.value_per_100_g ?? child.value;
+    });
+  });
+  ((nutritionalInfo.vitamins || {}).values || []).forEach((item) => {
+    if (item.title) nutrition[item.title] = item.value_per_100_g ?? item.value;
+  });
+  return nutrition;
+}
+
+function stripHtml(value) {
+  const element = document.createElement("div");
+  element.innerHTML = value;
+  return element.textContent.replace(/\s+/g, " ").replace(/^ingredientes\s*:?\s*/i, "").trim();
+}
+
+function diaBrandFromTitle(title) {
+  const known = ["Dia Lactea", "Dia L?ctea", "Dia", "Central Lechera Asturiana", "Pascual", "Puleva", "Alpro"];
+  const normalized = title.toLowerCase();
+  return known.find((brand) => normalized.includes(brand.toLowerCase())) || null;
 }
 
 async function parseJsonResponse(response) {
