@@ -1,10 +1,10 @@
-﻿import unittest
+import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from peat_product_scorer.models import Product
-from peat_product_scorer.web_app import app
+from peat_product_scorer.web_app import _normalize_product_url, app
 
 
 class WebAppTests(unittest.TestCase):
@@ -35,6 +35,16 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(data["band"], "avoid")
         self.assertEqual(data["product"]["nutrition_per_100g"]["fat_g"], 100.0)
 
+    def test_normalizes_bare_product_urls(self) -> None:
+        self.assertEqual(
+            _normalize_product_url("www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"),
+            "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
+        )
+        self.assertEqual(
+            _normalize_product_url(" https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6 "),
+            "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
+        )
+
     def test_score_endpoint_accepts_dia_url_payload(self) -> None:
         url = "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
         product = Product(
@@ -50,7 +60,7 @@ class WebAppTests(unittest.TestCase):
         )
 
         with patch("peat_product_scorer.web_app.fetch_product", return_value=product) as fetch_mock:
-            response = self.client.post("/api/score", json={"url": url})
+            response = self.client.post("/api/score", json={"url": url.replace("https://", "")})
 
         self.assertEqual(response.status_code, 200)
         fetch_mock.assert_called_once_with(url)

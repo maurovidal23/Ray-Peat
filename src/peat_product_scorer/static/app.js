@@ -290,17 +290,38 @@ function languageLabel(language) {
   return "Other";
 }
 
+function normalizeProductUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function isLikelyProductUrl(value) {
+  try {
+    const url = new URL(value);
+    return Boolean(url.hostname && url.hostname.includes("."));
+  } catch (error) {
+    return false;
+  }
+}
+
 async function submitScore(event) {
   event.preventDefault();
   setMessage("");
 
   let payload;
   if (mode === "url") {
-    const url = els.productUrl.value.trim();
+    const url = normalizeProductUrl(els.productUrl.value);
     if (!url) {
       setMessage("Add a product URL first.", true);
       return;
     }
+    if (!isLikelyProductUrl(url)) {
+      setMessage("Use a complete supermarket URL, for example https://www.dia.es/.../p/608P6.", true);
+      return;
+    }
+    els.productUrl.value = url;
     payload = { url };
   } else {
     try {

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from functools import lru_cache
@@ -139,7 +139,7 @@ def _select_article_variant(article: dict[str, Any], lang: str | None) -> dict[s
 @app.post("/api/score")
 def score(request: ScoreRequest) -> dict[str, Any]:
     if request.url:
-        product = _fetch_product_for_api(request.url)
+        product = _fetch_product_for_api(_normalize_product_url(request.url))
     elif request.product:
         product = _product_from_payload(request.product)
     else:
@@ -147,6 +147,15 @@ def score(request: ScoreRequest) -> dict[str, Any]:
 
     result = score_product(product)
     return result.model_dump(mode="json")
+
+
+def _normalize_product_url(value: str) -> str:
+    url = value.strip()
+    if not url:
+        return url
+    if not url.lower().startswith(("http://", "https://")):
+        return f"https://{url}"
+    return url
 
 
 def _fetch_product_for_api(url: str) -> Product:
