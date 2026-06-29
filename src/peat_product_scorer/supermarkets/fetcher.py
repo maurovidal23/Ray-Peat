@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import html
 import json
 import re
 from typing import Any
@@ -558,6 +559,7 @@ def _normalize_compare(value: str) -> str:
 
 
 def _strip_html(value: str) -> str:
+    value = html.unescape(value)
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 

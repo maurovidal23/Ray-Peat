@@ -1,7 +1,9 @@
 ﻿import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from peat_product_scorer.models import Product
 from peat_product_scorer.web_app import app
 
 
@@ -32,6 +34,29 @@ class WebAppTests(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["band"], "avoid")
         self.assertEqual(data["product"]["nutrition_per_100g"]["fat_g"], 100.0)
+
+    def test_score_endpoint_accepts_dia_url_payload(self) -> None:
+        url = "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
+        product = Product(
+            name="Leche entera Dia Lactea pack 6 x 1 L",
+            source="DIA",
+            url=url,
+            brand="Dia Lactea",
+            ingredient_text="Leche entera de vaca",
+            ingredient_source="dia.ingredients.text",
+            ingredients=["Leche entera de vaca"],
+            nutrition_per_100g={"energy_kcal": 63.0, "fat_g": 3.6},
+            missing_fields=[],
+        )
+
+        with patch("peat_product_scorer.web_app.fetch_product", return_value=product) as fetch_mock:
+            response = self.client.post("/api/score", json={"url": url})
+
+        self.assertEqual(response.status_code, 200)
+        fetch_mock.assert_called_once_with(url)
+        data = response.json()
+        self.assertEqual(data["product"]["source"], "DIA")
+        self.assertEqual(data["product"]["missing_fields"], [])
 
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")

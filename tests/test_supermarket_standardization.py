@@ -8,6 +8,7 @@ from peat_product_scorer.supermarkets.fetcher import (
     _load_bonpreu_initial_state,
     _product_from_bonpreu_entity,
     _standardize_ingredient_text,
+    _strip_html,
 )
 
 
@@ -87,6 +88,9 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertEqual(product.brand, "BONPREU")
         self.assertIn("ingredients", product.missing_fields)
         self.assertIn("nutrition_per_100g", product.missing_fields)
+
+    def test_html_entities_are_removed_from_ingredient_text(self) -> None:
+        self.assertEqual(_strip_html("leche&nbsp;en polvo &amp; cacao"), "leche en polvo & cacao")
 
     def test_standardize_ingredient_text_returns_none_for_empty_or_weak_value(self) -> None:
         self.assertIsNone(_standardize_ingredient_text(None, name="A", description=None))
