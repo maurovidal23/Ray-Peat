@@ -1,9 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import html
 import json
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -137,6 +138,13 @@ def _fetch_mercadona_product(product_id: str, timeout: int) -> Product:
 
 
 def _fetch_dia_product(url: str, timeout: int) -> Product:
+    product_id = _dia_product_id(url)
+    if product_id:
+        try:
+            return _fetch_dia_api_product(product_id, url=url, timeout=timeout)
+        except requests.RequestException:
+            pass
+
     response = requests.get(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
@@ -146,6 +154,33 @@ def _fetch_dia_product(url: str, timeout: int) -> Product:
     if not product:
         return parse_product_page(response.text, url=url, source="DIA")
 
+    return _product_from_dia_payload(product, url=url, raw_key="dia_page_context_product")
+
+
+def _dia_product_id(url: str) -> str | None:
+    match = re.search(r"/p/([^/?#]+)", url)
+    return match.group(1) if match else None
+
+
+def _fetch_dia_api_product(product_id: str, *, url: str, timeout: int) -> Product:
+    api_url = f"https://www.dia.es/api/v1/pdp-back/{product_id}"
+    parsed = urlparse(url)
+    path = parsed.path or f"/p/{product_id}"
+    response = requests.get(
+        api_url,
+        params={"path": path},
+        headers={**HEADERS, "Accept": "application/json"},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    product = payload.get("product") or {}
+    if not product:
+        raise ValueError("DIA API response did not include product data.")
+    return _product_from_dia_payload(product, url=url, raw_key="dia_pdp_api_product")
+
+
+def _product_from_dia_payload(product: dict[str, Any], *, url: str, raw_key: str) -> Product:
     title = (product.get("primary_info") or {}).get("title") or product.get("sku_id") or "Unknown DIA product"
     ingredients = _strip_html((product.get("ingredients") or {}).get("text") or "")
     nutritional_info = product.get("nutritional_info") or {}
@@ -160,7 +195,7 @@ def _fetch_dia_product(url: str, timeout: int) -> Product:
         ingredient_text=ingredients,
         ingredient_source="dia.ingredients.text" if ingredients else None,
         nutrition_raw=raw_nutrition,
-        raw={"dia_page_context_product": product},
+        raw={raw_key: product},
     )
 
 

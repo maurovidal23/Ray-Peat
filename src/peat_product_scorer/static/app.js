@@ -340,7 +340,7 @@ async function submitScore(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await response.json();
+    const data = await parseJsonResponse(response);
     if (!response.ok) {
       throw new Error(data.detail || "The product could not be scored.");
     }
@@ -350,6 +350,16 @@ async function submitScore(event) {
     setMessage(error.message, true);
   } finally {
     setLoading(false);
+  }
+}
+
+async function parseJsonResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return { detail: response.ok ? "The server returned an invalid response." : "The scoring service returned a server error." };
   }
 }
 
@@ -418,11 +428,22 @@ function renderNutrition(nutrition) {
 function renderIngredients(product) {
   const ingredients = product.ingredients || [];
   els.ingredientsText.textContent = ingredients.length ? ingredients.join(", ") : "No ingredients found.";
-  if (product.url) {
+  if (isHttpUrl(product.url)) {
     els.sourceLink.href = product.url;
     els.sourceLink.classList.remove("hidden");
   } else {
+    els.sourceLink.removeAttribute("href");
     els.sourceLink.classList.add("hidden");
+  }
+}
+
+function isHttpUrl(value) {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
   }
 }
 

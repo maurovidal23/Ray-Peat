@@ -171,6 +171,8 @@ def _fetch_product_for_api(url: str) -> Product:
         raise HTTPException(status_code=502, detail=f"Supermarket request failed: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Product extraction failed: {exc}") from exc
 
 
 def _product_from_payload(payload: dict[str, Any]) -> Product:

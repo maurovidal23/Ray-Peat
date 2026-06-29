@@ -5,6 +5,7 @@ from peat_product_scorer.supermarkets.fetcher import (
     _bonpreu_entity_from_state,
     _build_product,
     _consum_ingredient_text,
+    _dia_product_id,
     _load_bonpreu_initial_state,
     _product_from_bonpreu_entity,
     _standardize_ingredient_text,
@@ -27,6 +28,12 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertIsNone(product.ingredient_text)
         self.assertIn("ingredients", product.missing_fields)
         self.assertIn("nutrition_per_100g", product.missing_fields)
+
+    def test_dia_product_id_accepts_pack_skus(self) -> None:
+        self.assertEqual(
+            _dia_product_id("https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"),
+            "608P6",
+        )
 
     def test_consum_ingredient_text_requires_ingredient_labeled_attribute(self) -> None:
         product_data = {
