@@ -41,6 +41,16 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/articles", include_in_schema=False)
+def articles_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/articles/{article_id}", include_in_schema=False)
+def article_page(article_id: str) -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
@@ -73,10 +83,10 @@ def articles() -> dict[str, Any]:
             {
                 "id": article["id"],
                 "title": article["title"],
-                "language": article["language"],
+                "languages": article["languages"],
+                "default_language": article["default_language"],
                 "excerpt": article["excerpt"],
                 "word_count": article["word_count"],
-                "source": article["source"],
             }
             for article in _load_articles()
         ]
@@ -84,11 +94,37 @@ def articles() -> dict[str, Any]:
 
 
 @app.get("/api/articles/{article_id}")
-def article_detail(article_id: str) -> dict[str, Any]:
+def article_detail(article_id: str, lang: str | None = None) -> dict[str, Any]:
     for article in _load_articles():
-        if article["id"] == article_id:
-            return article
+        if article["id"] != article_id:
+            continue
+        variant = _select_article_variant(article, lang)
+        return {
+            "id": article["id"],
+            "languages": article["languages"],
+            "selected_language": variant["language"],
+            "title": variant["title"],
+            "source_pdf": variant["source_pdf"],
+            "paragraphs": variant["paragraphs"],
+            "excerpt": variant["excerpt"],
+            "word_count": variant["word_count"],
+        }
     raise HTTPException(status_code=404, detail="Article not found.")
+
+
+def _select_article_variant(article: dict[str, Any], lang: str | None) -> dict[str, Any]:
+    variants = article.get("variants", [])
+    if not variants:
+        raise HTTPException(status_code=404, detail="Article variant not found.")
+    if lang:
+        for variant in variants:
+            if variant["language"] == lang:
+                return variant
+        raise HTTPException(status_code=404, detail=f"Article is not available in language '{lang}'.")
+    for variant in variants:
+        if variant["language"] == article.get("default_language"):
+            return variant
+    return variants[0]
 
 
 @app.post("/api/score")

@@ -33,20 +33,31 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(data["band"], "avoid")
         self.assertEqual(data["product"]["nutrition_per_100g"]["fat_g"], 100.0)
 
-    def test_articles_endpoint_lists_formatted_article_library(self) -> None:
+    def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")
 
         self.assertEqual(response.status_code, 200)
         articles = response.json()["articles"]
         self.assertGreater(len(articles), 50)
-        self.assertIn("excerpt", articles[0])
-        self.assertNotIn("url", articles[0])
+        self.assertIn("languages", articles[0])
+        self.assertIn("default_language", articles[0])
+        self.assertNotIn("paragraphs", articles[0])
 
-    def test_article_detail_endpoint_returns_paragraphs(self) -> None:
+    def test_article_detail_endpoint_returns_selected_language_paragraphs(self) -> None:
         articles = self.client.get("/api/articles").json()["articles"]
-        response = self.client.get(f"/api/articles/{articles[0]['id']}")
+        article_summary = articles[0]
+        response = self.client.get(
+            f"/api/articles/{article_summary['id']}?lang={article_summary['default_language']}"
+        )
 
         self.assertEqual(response.status_code, 200)
         article = response.json()
         self.assertGreater(len(article["paragraphs"]), 1)
-        self.assertEqual(article["id"], articles[0]["id"])
+        self.assertEqual(article["id"], article_summary["id"])
+        self.assertIn("source_pdf", article)
+
+    def test_article_page_route_serves_spa(self) -> None:
+        response = self.client.get("/articles/example-paper")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Ray Peat Articles", response.text)

@@ -9,9 +9,9 @@
   <body>
     <main class="shell">
       <section class="workspace">
-        <header class="topbar">
+        <header class="topbar app-header">
           <div>
-            <p class="eyebrow">Ray Peat resources and supermarket evaluator</p>
+            <p class="eyebrow">Ray Peat papers and supermarket evaluator</p>
             <h1>Ray Peat Articles</h1>
           </div>
           <div class="topbar-actions">
@@ -27,12 +27,12 @@
           <div class="library-toolbar">
             <label class="field-group search-field">
               <span>Search articles</span>
-              <input id="articleSearch" type="search" autocomplete="off" placeholder="Search by title or article text" />
+              <input id="articleSearch" type="search" autocomplete="off" placeholder="Search by title or extracted PDF text" />
             </label>
             <label class="field-group language-field">
-              <span>Language</span>
+              <span>List language</span>
               <select id="articleLanguage">
-                <option value="all">All</option>
+                <option value="all">All languages</option>
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
                 <option value="other">Other</option>
@@ -42,7 +42,7 @@
 
           <div class="library-summary">
             <div>
-              <span>Resources</span>
+              <span>Papers</span>
               <strong id="articleCount">0</strong>
             </div>
             <div>
@@ -60,7 +60,7 @@
             <article id="articleReader" class="article-reader" aria-live="polite">
               <div class="empty-state reader-empty">
                 <h2>Select an article</h2>
-                <p>Search or choose an article from the list to read it in formatted text.</p>
+                <p>Choose a paper to open its formatted article page.</p>
               </div>
             </article>
           </div>
@@ -76,13 +76,7 @@
             <form id="scoreForm" class="input-stack">
               <label id="urlGroup" class="field-group">
                 <span>Product URL</span>
-                <input
-                  id="productUrl"
-                  name="productUrl"
-                  type="url"
-                  autocomplete="off"
-                  placeholder="https://tienda.mercadona.es/product/..."
-                />
+                <input id="productUrl" name="productUrl" type="url" autocomplete="off" placeholder="https://tienda.mercadona.es/product/..." />
               </label>
 
               <label id="jsonGroup" class="field-group hidden">
@@ -120,10 +114,7 @@
 
             <article id="resultView" class="result-view hidden">
               <div class="score-row">
-                <div id="scoreGauge" class="score-gauge" style="--score: 0">
-                  <span id="scoreValue">0</span>
-                  <small>/100</small>
-                </div>
+                <div id="scoreGauge" class="score-gauge" style="--score: 0"><span id="scoreValue">0</span><small>/100</small></div>
                 <div class="score-copy">
                   <span id="scoreBand" class="band">mixed</span>
                   <h2 id="productName"></h2>
@@ -132,43 +123,24 @@
               </div>
 
               <div class="meta-grid">
-                <div>
-                  <span>Source</span>
-                  <strong id="productSource">-</strong>
-                </div>
-                <div>
-                  <span>Brand</span>
-                  <strong id="productBrand">-</strong>
-                </div>
-                <div>
-                  <span>Scraped</span>
-                  <strong id="scrapedAt">-</strong>
-                </div>
+                <div><span>Source</span><strong id="productSource">-</strong></div>
+                <div><span>Brand</span><strong id="productBrand">-</strong></div>
+                <div><span>Scraped</span><strong id="scrapedAt">-</strong></div>
               </div>
 
               <section class="details-grid">
                 <div class="details-section">
-                  <div class="section-heading">
-                    <h3>Reasons</h3>
-                    <span id="reasonCount">0 rules</span>
-                  </div>
+                  <div class="section-heading"><h3>Reasons</h3><span id="reasonCount">0 rules</span></div>
                   <div id="reasonsList" class="reasons-list"></div>
                 </div>
-
                 <div class="details-section">
-                  <div class="section-heading">
-                    <h3>Nutrition per 100g</h3>
-                    <span id="nutritionCount">0 values</span>
-                  </div>
+                  <div class="section-heading"><h3>Nutrition per 100g</h3><span id="nutritionCount">0 values</span></div>
                   <div id="nutritionList" class="nutrition-list"></div>
                 </div>
               </section>
 
               <section class="ingredients-section">
-                <div class="section-heading">
-                  <h3>Ingredients</h3>
-                  <a id="sourceLink" href="#" target="_blank" rel="noreferrer">Open source</a>
-                </div>
+                <div class="section-heading"><h3>Ingredients</h3><a id="sourceLink" href="#" target="_blank" rel="noreferrer">Open source</a></div>
                 <p id="ingredientsText"></p>
               </section>
             </article>

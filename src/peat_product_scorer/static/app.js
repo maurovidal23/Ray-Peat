@@ -71,7 +71,13 @@ const els = {
 let mode = "url";
 let currentView = "library";
 let articles = [];
-let selectedArticleId = null;
+let selectedArticleId = articleIdFromLocation();
+let selectedLanguage = new URLSearchParams(window.location.search).get("lang") || null;
+
+function articleIdFromLocation() {
+  const match = window.location.pathname.match(/^\/articles\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 function setView(nextView) {
   currentView = nextView;
@@ -79,6 +85,19 @@ function setView(nextView) {
   els.evaluatorView.classList.toggle("hidden", currentView !== "evaluator");
   els.libraryViewButton.classList.toggle("active", currentView === "library");
   els.evaluatorViewButton.classList.toggle("active", currentView === "evaluator");
+}
+
+function articleUrl(articleId, language = selectedLanguage) {
+  const params = language ? `?lang=${encodeURIComponent(language)}` : "";
+  return `/articles/${encodeURIComponent(articleId)}${params}`;
+}
+
+function navigateArticle(articleId, language = selectedLanguage) {
+  selectedArticleId = articleId;
+  selectedLanguage = language;
+  history.pushState({ articleId, language }, "", articleUrl(articleId, language));
+  renderArticles();
+  renderArticleDetail(articleId, language);
 }
 
 function setMode(nextMode) {
@@ -136,11 +155,15 @@ async function loadArticles() {
     const response = await fetch("/api/articles");
     const data = await response.json();
     articles = data.articles || [];
-    selectedArticleId = articles[0]?.id || null;
+    if (!selectedArticleId && articles.length) {
+      selectedArticleId = articles[0].id;
+      selectedLanguage = articles[0].default_language;
+      history.replaceState({ articleId: selectedArticleId, language: selectedLanguage }, "", articleUrl(selectedArticleId, selectedLanguage));
+    }
     updateArticleSummary();
     renderArticles();
     if (selectedArticleId) {
-      await renderArticleDetail(selectedArticleId);
+      await renderArticleDetail(selectedArticleId, selectedLanguage);
     }
   } catch (error) {
     els.articleList.innerHTML = `<p class="message error">Article library could not be loaded.</p>`;
@@ -149,78 +172,92 @@ async function loadArticles() {
 
 function updateArticleSummary() {
   els.articleCount.textContent = articles.length;
-  els.englishCount.textContent = articles.filter((article) => article.language === "en").length;
-  els.spanishCount.textContent = articles.filter((article) => article.language === "es").length;
+  els.englishCount.textContent = articles.filter((article) => article.languages.includes("en")).length;
+  els.spanishCount.textContent = articles.filter((article) => article.languages.includes("es")).length;
+}
+
+function filteredArticles() {
+  const query = els.articleSearch.value.trim().toLowerCase();
+  const language = els.articleLanguage.value;
+  return articles.filter((article) => {
+    const matchesQuery = !query || `${article.title} ${article.excerpt}`.toLowerCase().includes(query);
+    const matchesLanguage = language === "all" || article.languages.includes(language);
+    return matchesQuery && matchesLanguage;
+  });
 }
 
 function renderArticles() {
-  const query = els.articleSearch.value.trim().toLowerCase();
-  const language = els.articleLanguage.value;
-  const filtered = articles.filter((article) => {
-    const matchesQuery = !query || `${article.title} ${article.excerpt}`.toLowerCase().includes(query);
-    const matchesLanguage = language === "all" || article.language === language;
-    return matchesQuery && matchesLanguage;
-  });
-
+  const filtered = filteredArticles();
   els.articleList.innerHTML = "";
   if (!filtered.length) {
     els.articleList.innerHTML = `<p class="message">No articles match this search.</p>`;
     return;
   }
 
-  if (!filtered.some((article) => article.id === selectedArticleId)) {
-    selectedArticleId = filtered[0].id;
-    renderArticleDetail(selectedArticleId);
-  }
-
   filtered.forEach((article) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "article-row";
-    button.classList.toggle("active", article.id === selectedArticleId);
-    button.innerHTML = `
-      <span class="article-row-meta">${languageLabel(article.language)} / ${formatWordCount(article.word_count)}</span>
+    const link = document.createElement("a");
+    const targetLanguage = article.languages.includes(selectedLanguage) ? selectedLanguage : article.default_language;
+    link.href = articleUrl(article.id, targetLanguage);
+    link.className = "article-row";
+    link.classList.toggle("active", article.id === selectedArticleId);
+    link.innerHTML = `
+      <span class="article-row-meta">${languageBadges(article.languages)} / ${formatWordCount(article.word_count)}</span>
       <strong>${article.title}</strong>
       <span>${article.excerpt}</span>
     `;
-    button.addEventListener("click", async () => {
-      selectedArticleId = article.id;
-      renderArticles();
-      await renderArticleDetail(article.id);
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      navigateArticle(article.id, targetLanguage);
     });
-    els.articleList.appendChild(button);
+    els.articleList.appendChild(link);
   });
 }
 
-async function renderArticleDetail(articleId) {
+async function renderArticleDetail(articleId, language) {
   els.articleReader.innerHTML = `<p class="message">Loading article...</p>`;
   try {
-    const response = await fetch(`/api/articles/${encodeURIComponent(articleId)}`);
+    const params = language ? `?lang=${encodeURIComponent(language)}` : "";
+    const response = await fetch(`/api/articles/${encodeURIComponent(articleId)}${params}`);
     const article = await response.json();
     if (!response.ok) {
       throw new Error(article.detail || "Article not found.");
     }
+    selectedLanguage = article.selected_language;
+    document.title = `${article.title} / Ray Peat Library`;
+
+    const header = document.createElement("header");
+    header.className = "reader-header";
+
+    const meta = document.createElement("div");
+    meta.className = "reader-meta";
+    meta.innerHTML = `<span>${languageLabel(article.selected_language)}</span><span>${formatWordCount(article.word_count)}</span><span>${article.source_pdf}</span>`;
 
     const title = document.createElement("h2");
     title.textContent = article.title;
 
-    const meta = document.createElement("div");
-    meta.className = "reader-meta";
-    meta.innerHTML = `<span>${languageLabel(article.language)}</span><span>${formatWordCount(article.word_count)}</span>`;
+    const controls = document.createElement("div");
+    controls.className = "reader-controls";
+    const languageSelect = document.createElement("select");
+    languageSelect.setAttribute("aria-label", "Article language");
+    article.languages.forEach((lang) => {
+      const option = document.createElement("option");
+      option.value = lang;
+      option.textContent = languageLabel(lang);
+      option.selected = lang === article.selected_language;
+      languageSelect.appendChild(option);
+    });
+    languageSelect.addEventListener("change", () => navigateArticle(article.id, languageSelect.value));
+    controls.append(languageSelect);
+
+    header.append(meta, title, controls);
 
     const body = document.createElement("div");
     body.className = "article-body";
     article.paragraphs.forEach((paragraph) => {
-      if (/^references\b/i.test(paragraph)) {
+      if (paragraph === "REFERENCES") {
         const heading = document.createElement("h3");
         heading.textContent = "References";
         body.appendChild(heading);
-        const rest = paragraph.replace(/^references\b[:\s]*/i, "").trim();
-        if (rest) {
-          const p = document.createElement("p");
-          p.textContent = rest;
-          body.appendChild(p);
-        }
         return;
       }
       const p = document.createElement("p");
@@ -229,11 +266,16 @@ async function renderArticleDetail(articleId) {
     });
 
     els.articleReader.innerHTML = "";
-    els.articleReader.append(meta, title, body);
+    els.articleReader.append(header, body);
     els.articleReader.scrollTop = 0;
+    renderArticles();
   } catch (error) {
     els.articleReader.innerHTML = `<p class="message error">${error.message}</p>`;
   }
+}
+
+function languageBadges(languages) {
+  return languages.map(languageLabel).join(" + ");
 }
 
 function formatWordCount(value) {
@@ -246,7 +288,6 @@ function languageLabel(language) {
   if (language === "en") return "English";
   return "Other";
 }
-
 
 async function submitScore(event) {
   event.preventDefault();
@@ -330,10 +371,7 @@ function renderReasons(reasons) {
     const row = document.createElement("div");
     const deltaClass = reason.delta >= 0 ? "positive" : "negative";
     row.className = "reason-row";
-    row.innerHTML = `
-      <span class="delta ${deltaClass}">${formatDelta(reason.delta)}</span>
-      <div><strong>${reason.label}</strong><p>${reason.detail}</p></div>
-    `;
+    row.innerHTML = `<span class="delta ${deltaClass}">${formatDelta(reason.delta)}</span><div><strong>${reason.label}</strong><p>${reason.detail}</p></div>`;
     els.reasonsList.appendChild(row);
   });
 }
@@ -393,6 +431,12 @@ els.articleLanguage.addEventListener("change", renderArticles);
 els.urlMode.addEventListener("click", () => setMode("url"));
 els.jsonMode.addEventListener("click", () => setMode("json"));
 els.scoreForm.addEventListener("submit", submitScore);
+window.addEventListener("popstate", () => {
+  selectedArticleId = articleIdFromLocation() || selectedArticleId;
+  selectedLanguage = new URLSearchParams(window.location.search).get("lang") || selectedLanguage;
+  renderArticles();
+  if (selectedArticleId) renderArticleDetail(selectedArticleId, selectedLanguage);
+});
 
 renderExamples();
 loadConnectors();
