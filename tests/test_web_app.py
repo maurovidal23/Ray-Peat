@@ -91,8 +91,8 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(article["id"], article_summary["id"])
         self.assertIn("source_pdf", article)
 
-    def test_article_page_route_serves_spa(self) -> None:
+    def test_article_page_route_serves_reference_library(self) -> None:
         response = self.client.get("/articles/example-paper")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Ray Peat Articles", response.text)
+        self.assertIn("Ray Peat — Essays &amp; Articles", response.text)

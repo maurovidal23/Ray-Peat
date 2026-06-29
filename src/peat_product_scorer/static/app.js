@@ -69,7 +69,7 @@ const els = {
 };
 
 let mode = "url";
-let currentView = "library";
+let currentView = window.location.pathname.startsWith("/evaluator") ? "evaluator" : "library";
 let articles = [];
 let selectedArticleId = articleIdFromLocation();
 let selectedLanguage = new URLSearchParams(window.location.search).get("lang") || null;
@@ -158,14 +158,14 @@ async function loadArticles() {
     const response = await fetch("/api/articles");
     const data = await response.json();
     articles = data.articles || [];
-    if (!selectedArticleId && articles.length) {
+    if (currentView === "library" && !selectedArticleId && articles.length) {
       selectedArticleId = articles[0].id;
       selectedLanguage = articles[0].default_language;
       history.replaceState({ articleId: selectedArticleId, language: selectedLanguage }, "", articleUrl(selectedArticleId, selectedLanguage));
     }
     updateArticleSummary();
     renderArticles();
-    if (selectedArticleId) {
+    if (currentView === "library" && selectedArticleId) {
       await renderArticleDetail(selectedArticleId, selectedLanguage);
     }
   } catch (error) {
@@ -569,6 +569,7 @@ window.addEventListener("popstate", () => {
   if (selectedArticleId) renderArticleDetail(selectedArticleId, selectedLanguage);
 });
 
+setView(currentView);
 renderExamples();
 loadConnectors();
 loadArticles();

@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,8 @@ from .supermarkets.adapters import ADAPTERS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ARTICLE_DATA_PATH = STATIC_DIR / "articles" / "ray_peat_articles.json"
+EN_LIBRARY_PAGE = STATIC_DIR / "library" / "en" / "index.html"
+ES_LIBRARY_PAGE = STATIC_DIR / "library" / "es" / "index.html"
 
 
 class ScoreRequest(BaseModel):
@@ -38,17 +40,32 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
+    return FileResponse(EN_LIBRARY_PAGE)
+
+
+@app.get("/evaluator", include_in_schema=False)
+def evaluator_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/articles", include_in_schema=False)
 def articles_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(EN_LIBRARY_PAGE)
 
 
 @app.get("/articles/{article_id}", include_in_schema=False)
-def article_page(article_id: str) -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+def article_page(article_id: str) -> RedirectResponse:
+    return RedirectResponse(url=f"/articles#article/{article_id}")
+
+
+@app.get("/articles-es", include_in_schema=False)
+def articles_page_es() -> FileResponse:
+    return FileResponse(ES_LIBRARY_PAGE)
+
+
+@app.get("/articles-es/{article_id}", include_in_schema=False)
+def article_page_es(article_id: str) -> RedirectResponse:
+    return RedirectResponse(url=f"/articles-es#article/{article_id}")
 
 
 @app.get("/health")
