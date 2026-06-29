@@ -987,19 +987,26 @@ select:focus {
   }
 }
 
-/* Evaluator page aligned with the reference article library */
+/* Evaluator page aligned with the generated article archive */
 body[data-view="evaluator"] {
   --page: #f6f1e7;
   --panel: #faf6ec;
-  --panel-strong: #ede5d2;
   --ink: #1d1a16;
   --muted: #7a6f5d;
   --line: #dcd2bb;
   --green: #a84317;
   --green-soft: #f1ddcf;
+  --amber: #b58a2f;
+  --amber-soft: #f7ebcb;
+  --red: #9f3e32;
+  --red-soft: #efd9d4;
+  --steel: #3a342c;
   --shadow: 0 1px 2px rgba(26, 22, 18, 0.04), 0 8px 24px -12px rgba(26, 22, 18, 0.12);
   background: var(--page);
   font-family: "Source Serif 4", Georgia, serif;
+  font-feature-settings: "ss01", "onum";
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
 }
 
 body[data-view="evaluator"] .shell {
@@ -1012,72 +1019,159 @@ body[data-view="evaluator"] .workspace {
 }
 
 body[data-view="evaluator"] .topbar {
+  display: block;
   position: sticky;
   top: 0;
-  z-index: 20;
-  align-items: center;
-  margin: 0 -28px 48px;
-  padding: 14px 28px;
+  z-index: 40;
+  margin: 0;
   background: rgba(246, 241, 231, 0.92);
   border-bottom: 1px solid #e7decb;
   backdrop-filter: saturate(140%) blur(8px);
 }
 
-body[data-view="evaluator"] .app-header h1 {
+body[data-view="evaluator"] .topbar-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 28px;
+}
+
+body[data-view="evaluator"] .brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+body[data-view="evaluator"] .brand-mark {
   font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(34px, 4vw, 58px);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
-body[data-view="evaluator"] .eyebrow,
-body[data-view="evaluator"] .view-button,
-body[data-view="evaluator"] .status-pill,
-body[data-view="evaluator"] .field-group span,
-body[data-view="evaluator"] .section-heading,
-body[data-view="evaluator"] .segment,
-body[data-view="evaluator"] .primary-button,
-body[data-view="evaluator"] .example-button,
-body[data-view="evaluator"] .meta-grid,
-body[data-view="evaluator"] .band {
+body[data-view="evaluator"] .brand-mark .dot {
+  color: var(--green);
+}
+
+body[data-view="evaluator"] .brand-tag {
+  color: var(--muted);
   font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-body[data-view="evaluator"] .eyebrow {
-  color: #a84317;
-  letter-spacing: 0.22em;
+body[data-view="evaluator"] .topnav {
+  justify-self: center;
 }
 
 body[data-view="evaluator"] .view-switcher {
+  display: flex;
+  gap: 24px;
+  padding: 0;
   background: transparent;
-  gap: 8px;
+  border-radius: 0;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
 }
 
 body[data-view="evaluator"] .view-button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  min-height: 34px;
-  padding: 7px 13px;
-  background: transparent;
-  color: #3a342c;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  font-weight: 600;
+  min-height: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--steel);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 0;
+  text-decoration: none;
 }
 
 body[data-view="evaluator"] .view-button.active,
 body[data-view="evaluator"] .view-button:hover {
-  border-color: #a84317;
-  background: var(--panel);
-  color: #a84317;
+  border-color: #e5b79f;
+  background: transparent;
   box-shadow: none;
+  color: var(--green);
+}
+
+body[data-view="evaluator"] .topbar-actions {
+  gap: 14px;
+}
+
+body[data-view="evaluator"] .status-pill,
+body[data-view="evaluator"] .band,
+body[data-view="evaluator"] .section-heading span {
+  border-color: var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-view="evaluator"] .status-pill.ok {
+  border-color: #e5b79f;
+  background: var(--panel);
+  color: var(--green);
+}
+
+body[data-view="evaluator"] .evaluator-hero {
+  padding: 72px 0 48px;
+  border-bottom: 1px solid #e7decb;
+}
+
+body[data-view="evaluator"] .hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: var(--green);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+body[data-view="evaluator"] .hero-eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: var(--green);
+}
+
+body[data-view="evaluator"] .evaluator-hero h1,
+body[data-view="evaluator"] .score-copy h2,
+body[data-view="evaluator"] .empty-state h2,
+body[data-view="evaluator"] .section-heading h2,
+body[data-view="evaluator"] .section-heading h3 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+body[data-view="evaluator"] .evaluator-hero h1 {
+  color: var(--ink);
+  font-size: clamp(44px, 7.2vw, 104px);
+  line-height: 0.96;
+  max-width: 780px;
 }
 
 body[data-view="evaluator"] .main-grid {
-  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: 28px;
+  padding-top: 48px;
 }
 
 body[data-view="evaluator"] .control-panel,
@@ -1090,11 +1184,22 @@ body[data-view="evaluator"] .result-panel {
 
 body[data-view="evaluator"] .control-panel {
   padding: 24px;
-  top: 96px;
+  top: 88px;
 }
 
 body[data-view="evaluator"] .result-panel {
   padding: 28px;
+}
+
+body[data-view="evaluator"] .field-group span,
+body[data-view="evaluator"] .section-heading,
+body[data-view="evaluator"] .segment,
+body[data-view="evaluator"] .primary-button,
+body[data-view="evaluator"] .example-button,
+body[data-view="evaluator"] .meta-grid,
+body[data-view="evaluator"] .reason-row,
+body[data-view="evaluator"] .nutrition-chip {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
 
 body[data-view="evaluator"] input,
@@ -1103,74 +1208,100 @@ body[data-view="evaluator"] select {
   border-color: var(--line);
   border-radius: 0;
   background: #fffaf0;
+  color: var(--ink);
 }
 
 body[data-view="evaluator"] input:focus,
 body[data-view="evaluator"] textarea:focus,
 body[data-view="evaluator"] select:focus {
-  border-color: #a84317;
+  border-color: #e5b79f;
   box-shadow: 0 0 0 3px rgba(168, 67, 23, 0.08);
+  background: #fff;
 }
 
 body[data-view="evaluator"] .segmented {
-  border-color: var(--line);
   border-radius: 999px;
   background: #ede5d2;
 }
 
 body[data-view="evaluator"] .segment {
   border-radius: 999px;
+  font-weight: 600;
 }
 
 body[data-view="evaluator"] .segment.active,
 body[data-view="evaluator"] .primary-button {
-  background: #1d1a16;
-  color: #f6f1e7;
+  background: var(--ink);
+  color: var(--page);
 }
 
 body[data-view="evaluator"] .primary-button {
   border-radius: 999px;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-body[data-view="evaluator"] .section-heading h2,
-body[data-view="evaluator"] .section-heading h3,
-body[data-view="evaluator"] .score-copy h2,
-body[data-view="evaluator"] .empty-state h2 {
-  font-family: "Fraunces", Georgia, serif;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-}
-
 body[data-view="evaluator"] .example-button,
+body[data-view="evaluator"] .reason-row,
 body[data-view="evaluator"] .nutrition-chip,
-body[data-view="evaluator"] .reason-item,
 body[data-view="evaluator"] .meta-grid > div {
   border-color: var(--line);
   border-radius: 0;
   background: #fffaf0;
 }
 
-body[data-view="evaluator"] .score-gauge {
-  border-color: var(--line);
-  background: conic-gradient(#a84317 calc(var(--score) * 1%), #e7decb 0);
+body[data-view="evaluator"] .example-button:hover {
+  border-color: #e5b79f;
+  background: #fff;
 }
 
-body[data-view="evaluator"] .link-button {
-  border-radius: 999px;
+body[data-view="evaluator"] .score-gauge {
+  background: conic-gradient(var(--green) calc(var(--score) * 1%), #e7decb 0);
+}
+
+body[data-view="evaluator"] .score-gauge::after {
+  background: var(--panel);
+}
+
+body[data-view="evaluator"] .score-copy p,
+body[data-view="evaluator"] .ingredients-section p {
+  color: var(--steel);
+}
+
+body[data-view="evaluator"] .ingredients-section a {
+  color: #7a2e0d;
 }
 
 @media (max-width: 920px) {
   body[data-view="evaluator"] .workspace {
-    padding: 0 16px 40px;
+    padding: 0 20px 40px;
   }
 
-  body[data-view="evaluator"] .topbar {
-    margin: 0 -16px 28px;
+  body[data-view="evaluator"] .topbar-inner {
+    grid-template-columns: auto auto;
+    gap: 14px;
     padding: 14px 16px;
+  }
+
+  body[data-view="evaluator"] .topnav {
+    justify-self: end;
+  }
+
+  body[data-view="evaluator"] .topbar-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  body[data-view="evaluator"] .brand-tag {
+    display: none;
+  }
+
+  body[data-view="evaluator"] .evaluator-hero {
+    padding: 48px 0 32px;
   }
 
   body[data-view="evaluator"] .main-grid {
     gap: 18px;
+    padding-top: 32px;
   }
 }

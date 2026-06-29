@@ -10,21 +10,28 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <header class="topbar app-header">
+      <div class="topbar-inner">
+        <a href="/articles" class="brand">
+          <span class="brand-mark">Ray Peat<span class="dot">.</span></span>
+          <span class="brand-tag">Essays, articles &amp; correspondence</span>
+        </a>
+        <nav class="topnav view-switcher" aria-label="Primary view">
+          <a id="libraryViewButton" class="view-button active" href="/articles">Papers</a>
+          <button id="evaluatorViewButton" class="view-button" type="button">Evaluator</button>
+        </nav>
+        <div class="topbar-actions">
+          <div id="serviceStatus" class="status-pill">Checking service</div>
+        </div>
+      </div>
+    </header>
+
     <main class="shell">
       <section class="workspace">
-        <header class="topbar app-header">
-          <div>
-            <p class="eyebrow">Ray Peat food tools</p>
-            <h1>Product Evaluator</h1>
-          </div>
-          <div class="topbar-actions">
-            <nav class="view-switcher" aria-label="Primary view">
-              <button id="libraryViewButton" class="view-button active" type="button">Articles</button>
-              <button id="evaluatorViewButton" class="view-button" type="button">Evaluator</button>
-            </nav>
-            <div id="serviceStatus" class="status-pill">Checking service</div>
-          </div>
-        </header>
+        <section class="evaluator-hero" aria-labelledby="evaluatorTitle">
+          <div class="hero-eyebrow">Product scoring</div>
+          <h1 id="evaluatorTitle">Product evaluator.</h1>
+        </section>
 
         <section id="libraryView" class="library-view" aria-label="Ray Peat article library">
           <div class="library-toolbar">
