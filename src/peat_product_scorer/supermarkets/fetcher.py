@@ -48,6 +48,60 @@ def fetch_product(url: str, timeout: int = 20) -> Product:
     source = supermarket_name_for_url(url)
     return parse_product_page(response.text, url=url, source=source)
 
+def _build_product(
+    *,
+    name: str,
+    source: str,
+    url: str,
+    brand: str | None = None,
+    description: str | None = None,
+    ingredient_text: str | None = None,
+    ingredient_source: str | None = None,
+    nutrition_raw: dict[str, object] | None = None,
+    raw: dict[str, Any] | None = None,
+    fallback: Product | None = None,
+) -> Product:
+    cleaned_ingredient_text = _standardize_ingredient_text(ingredient_text, name=name, description=description)
+    ingredients = _standardize_ingredients(cleaned_ingredient_text)
+    if not ingredients and fallback and fallback.ingredients:
+        ingredients = fallback.ingredients
+        cleaned_ingredient_text = ", ".join(fallback.ingredients)
+        ingredient_source = ingredient_source or "generic_parser"
+
+    nutrition = normalize_nutrition(nutrition_raw or {})
+    if not nutrition and fallback and fallback.nutrition_per_100g:
+        nutrition = fallback.nutrition_per_100g
+
+    missing_fields: list[str] = []
+    if not ingredients:
+        missing_fields.append("ingredients")
+    if not nutrition:
+        missing_fields.append("nutrition_per_100g")
+
+    raw_payload = dict(raw or {})
+    raw_payload["extraction"] = {
+        "ingredient_source": ingredient_source,
+        "has_ingredients": bool(ingredients),
+        "has_nutrition_per_100g": bool(nutrition),
+        "missing_fields": missing_fields,
+    }
+
+    return Product(
+        name=name,
+        source=source,
+        url=url,
+        brand=brand,
+        description=description,
+        ingredient_text=cleaned_ingredient_text,
+        ingredient_source=ingredient_source,
+        ingredients=ingredients,
+        nutrition_per_100g=nutrition,
+        missing_fields=missing_fields,
+        raw=raw_payload,
+    )
+
+
+
 def _mercadona_product_id(url: str) -> str | None:
     match = re.search(r"/(?:product|products)/(\d+)", url)
     return match.group(1) if match else None
@@ -65,14 +119,15 @@ def _fetch_mercadona_product(product_id: str, timeout: int) -> Product:
     ingredients_text = _strip_html(ingredients_html)
     ingredients_text = re.sub(r"^\s*ingredientes\s*:\s*", "", ingredients_text, flags=re.IGNORECASE)
 
-    return Product(
+    return _build_product(
         name=payload.get("display_name") or details.get("description") or "Unknown Mercadona product",
         source="Mercadona",
         url=payload.get("share_url") or api_url,
         brand=payload.get("brand") or details.get("brand"),
         description=details.get("description") or details.get("legal_name"),
-        ingredients=split_ingredients(ingredients_text),
-        nutrition_per_100g=normalize_nutrition(_flatten_nutrition(raw_nutrition)),
+        ingredient_text=ingredients_text,
+        ingredient_source="mercadona.nutrition_information.ingredients" if ingredients_text else None,
+        nutrition_raw=_flatten_nutrition(raw_nutrition),
         raw={"mercadona_api": payload},
     )
 
@@ -92,14 +147,15 @@ def _fetch_dia_product(url: str, timeout: int) -> Product:
     nutritional_info = product.get("nutritional_info") or {}
     raw_nutrition = _dia_nutrition(nutritional_info)
 
-    return Product(
+    return _build_product(
         name=title,
         source="DIA",
         url=url,
         brand=_dia_brand_from_title(title),
         description=(product.get("product_info") or {}).get("product"),
-        ingredients=split_ingredients(ingredients),
-        nutrition_per_100g=normalize_nutrition(raw_nutrition),
+        ingredient_text=ingredients,
+        ingredient_source="dia.ingredients.text" if ingredients else None,
+        nutrition_raw=raw_nutrition,
         raw={"dia_page_context_product": product},
     )
 
@@ -115,17 +171,18 @@ def _fetch_alcampo_product(url: str, timeout: int) -> Product:
     ingredients = sections.get("Ingredientes") or ""
     brand = sections.get("Marca")
 
-    return Product(
+    return _build_product(
         name=generic.name,
         source="Alcampo",
         url=url,
         brand=brand,
-        description=characteristics.get("Denominación legal del alimento") or generic.description,
-        ingredients=split_ingredients(_clean_ingredient_prefix(ingredients)),
-        nutrition_per_100g=normalize_nutrition(nutrition) or generic.nutrition_per_100g,
+        description=characteristics.get("Denominaci?n legal del alimento") or generic.description,
+        ingredient_text=ingredients,
+        ingredient_source="alcampo.sections.Ingredientes" if ingredients else None,
+        nutrition_raw=nutrition,
         raw={"alcampo_sections": sections, "json_ld": generic.raw.get("json_ld")},
+        fallback=generic,
     )
-
 
 
 def _consum_product_code(url: str) -> str | None:
@@ -149,32 +206,39 @@ def _fetch_consum_product(product_code: str, timeout: int) -> Product:
     brand = product_data.get("brand") or {}
     name = product_data.get("name") or f"Consum product {product_code}"
     description = product_data.get("description") or product_data.get("seoDescription")
-    evidence = _consum_attribute_text(product_data) or " ".join(part for part in [name, description or ""] if part)
+    ingredient_text = _consum_ingredient_text(product_data)
 
-    return Product(
+    return _build_product(
         name=name,
         source="Consum",
         url=product_data.get("url") or api_url,
         brand=brand.get("name") if isinstance(brand, dict) else None,
         description=description,
-        ingredients=split_ingredients(evidence),
-        nutrition_per_100g=normalize_nutrition(_consum_nutrition(product_data)),
+        ingredient_text=ingredient_text,
+        ingredient_source="consum.attributeGroups.ingredients" if ingredient_text else None,
+        nutrition_raw=_consum_nutrition(product_data),
         raw={"consum_api": payload},
     )
 
 
-def _consum_attribute_text(product_data: dict[str, Any]) -> str:
+def _consum_ingredient_text(product_data: dict[str, Any]) -> str:
     values: list[str] = []
+    ingredient_markers = ("ingred", "ingredient", "compos", "composition")
     for group in product_data.get("attributeGroups") or []:
+        group_label = f"{group.get('name') or ''} {group.get('code') or ''}".lower()
         for attribute in group.get("attributes") or []:
             code = str(attribute.get("code") or "").lower()
+            name = str(attribute.get("name") or "").lower()
+            label = f"{group_label} {code} {name}"
             if code.startswith("hidden.") or code.startswith("filter."):
+                continue
+            if not any(marker in label for marker in ingredient_markers):
                 continue
             for language in attribute.get("languages") or []:
                 for value in language.get("values") or []:
                     if isinstance(value, str) and value.strip():
                         values.append(value.strip())
-    return ", ".join(values)
+    return " ".join(values)
 
 
 def _consum_nutrition(product_data: dict[str, Any]) -> dict[str, object]:
@@ -200,15 +264,17 @@ def _fetch_eroski_product(url: str, timeout: int) -> Product:
     nutrition = _eroski_nutrition(soup)
     brand = _eroski_brand(generic.name)
 
-    return Product(
+    return _build_product(
         name=generic.name,
         source="Eroski",
         url=url,
         brand=brand,
         description=generic.description,
-        ingredients=split_ingredients(ingredients),
-        nutrition_per_100g=normalize_nutrition(nutrition) or generic.nutrition_per_100g,
+        ingredient_text=ingredients,
+        ingredient_source="eroski.feature.Ingredientes" if ingredients else None,
+        nutrition_raw=nutrition,
         raw={"json_ld": generic.raw.get("json_ld"), "eroski_nutrition": nutrition},
+        fallback=generic,
     )
 
 
@@ -335,6 +401,44 @@ def _table_to_mapping(text: str | None) -> dict[str, object]:
         if match:
             pairs[match.group(1)] = match.group(2)
     return pairs
+
+
+def _standardize_ingredient_text(value: str | None, *, name: str, description: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = _clean_ingredient_prefix(_strip_html(value))
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    if not cleaned:
+        return None
+    normalized_cleaned = _normalize_compare(cleaned)
+    weak_values = {_normalize_compare(name)}
+    if description:
+        weak_values.add(_normalize_compare(description))
+    # Product titles/descriptions are not ingredient evidence.
+    if normalized_cleaned in weak_values:
+        return None
+    return cleaned
+
+
+def _standardize_ingredients(value: str | None) -> list[str]:
+    ingredients = split_ingredients(value)
+    result: list[str] = []
+    seen: set[str] = set()
+    for ingredient in ingredients:
+        ingredient = re.sub(r"\s+", " ", ingredient).strip(" .")
+        if not ingredient:
+            continue
+        key = _normalize_compare(ingredient)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(ingredient)
+    return result
+
+
+def _normalize_compare(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
 
 
 def _strip_html(value: str) -> str:

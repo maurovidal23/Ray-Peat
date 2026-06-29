@@ -23,12 +23,18 @@ def parse_product_page(html: str, url: str, source: str) -> Product:
     )
     brand = _first_string(json_ld.get("brand"))
     description = _first_string(json_ld.get("description")) or _meta_content(soup, "description")
-    ingredients = split_ingredients(
-        json_ld.get("ingredients")
-        or json_ld.get("recipeIngredient")
+    ingredient_text = (
+        _first_string(json_ld.get("ingredients"))
+        or _joined_string_list(json_ld.get("recipeIngredient"))
         or _extract_labeled_block(visible_text, ["Ingredientes", "Ingredients"])
     )
+    ingredients = split_ingredients(_clean_ingredient_prefix(ingredient_text))
     nutrition = normalize_nutrition(_extract_nutrition(json_ld, visible_text))
+    missing_fields = []
+    if not ingredients:
+        missing_fields.append("ingredients")
+    if not nutrition:
+        missing_fields.append("nutrition_per_100g")
 
     return Product(
         name=name,
@@ -36,9 +42,20 @@ def parse_product_page(html: str, url: str, source: str) -> Product:
         url=url,
         brand=brand,
         description=description,
+        ingredient_text=_clean_ingredient_prefix(ingredient_text),
+        ingredient_source="generic_parser" if ingredient_text else None,
         ingredients=ingredients,
         nutrition_per_100g=nutrition,
-        raw={"json_ld": json_ld},
+        missing_fields=missing_fields,
+        raw={
+            "json_ld": json_ld,
+            "extraction": {
+                "ingredient_source": "generic_parser" if ingredient_text else None,
+                "has_ingredients": bool(ingredients),
+                "has_nutrition_per_100g": bool(nutrition),
+                "missing_fields": missing_fields,
+            },
+        },
     )
 
 
@@ -123,3 +140,19 @@ def _meta_content(soup: BeautifulSoup, name: str) -> str | None:
 
 def _title_text(soup: BeautifulSoup) -> str | None:
     return soup.title.string.strip() if soup.title and soup.title.string else None
+
+
+
+def _joined_string_list(value: Any) -> str | None:
+    if isinstance(value, list):
+        parts = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        return ", ".join(parts) if parts else None
+    return _first_string(value)
+
+
+
+def _clean_ingredient_prefix(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = re.sub(r"^\s*(ingredientes|ingredients)\s*:?\s*", "", value, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", value).strip(" .") or None

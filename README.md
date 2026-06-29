@@ -104,6 +104,15 @@ API endpoints:
 - `GET /api/articles/{article_id}?lang=en|es` returns formatted paragraphs extracted from the selected PDF variant.
 - `POST /api/score` scores either `{ "url": "..." }` or `{ "product": { ... } }`.
 
+Product payloads returned by the scoring API now expose standardized source quality fields:
+
+- `ingredient_text`: cleaned ingredient text before splitting.
+- `ingredient_source`: connector field used for ingredients, such as `dia.ingredients.text`.
+- `ingredients`: normalized ingredient list.
+- `missing_fields`: currently reports `ingredients` and/or `nutrition_per_100g` when the source did not expose reliable data.
+
+Connectors should not fill `ingredients` from product names or generic descriptions. If a source does not expose ingredients, leave the list empty and report it in `missing_fields`.
+
 Example API request:
 
 ```powershell

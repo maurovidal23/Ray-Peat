@@ -158,14 +158,25 @@ def _fetch_product_for_api(url: str) -> Product:
 def _product_from_payload(payload: dict[str, Any]) -> Product:
     nutrition = payload.get("nutrition_per_100g") or payload.get("nutrition") or {}
     try:
+        ingredient_text = payload.get("ingredients")
+        ingredients = split_ingredients(ingredient_text)
+        nutrition_per_100g = normalize_nutrition(nutrition)
+        missing_fields = []
+        if not ingredients:
+            missing_fields.append("ingredients")
+        if not nutrition_per_100g:
+            missing_fields.append("nutrition_per_100g")
         return Product(
             name=payload["name"],
             source=payload.get("source"),
             url=payload.get("url"),
             brand=payload.get("brand"),
             description=payload.get("description"),
-            ingredients=split_ingredients(payload.get("ingredients")),
-            nutrition_per_100g=normalize_nutrition(nutrition),
+            ingredient_text=", ".join(ingredients) if isinstance(ingredient_text, list) else ingredient_text,
+            ingredient_source="manual_payload" if ingredients else None,
+            ingredients=ingredients,
+            nutrition_per_100g=nutrition_per_100g,
+            missing_fields=missing_fields,
             raw=payload,
         )
     except KeyError as exc:
