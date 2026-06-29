@@ -88,11 +88,13 @@ function setView(nextView) {
 }
 
 function articleUrl(articleId, language = selectedLanguage) {
+  if (!articleId || articleId === "undefined") return "/articles";
   const params = language ? `?lang=${encodeURIComponent(language)}` : "";
   return `/articles/${encodeURIComponent(articleId)}${params}`;
 }
 
 function navigateArticle(articleId, language = selectedLanguage) {
+  if (!articleId || articleId === "undefined") return;
   selectedArticleId = articleId;
   selectedLanguage = language;
   history.pushState({ articleId, language }, "", articleUrl(articleId, language));
