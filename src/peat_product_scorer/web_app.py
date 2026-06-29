@@ -63,7 +63,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/version")
 def api_version() -> dict[str, str]:
-    return {"version": __version__, "build": "dia-pdp-api-20260629"}
+    return {"version": __version__, "build": "dia-browser-fallback-f5378a0"}
 
 
 @app.get("/api/connectors")
