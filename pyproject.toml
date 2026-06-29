@@ -30,7 +30,7 @@ peat-score = "peat_product_scorer.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-peat_product_scorer = ["static/*"]
+peat_product_scorer = ["static/*", "static/**/*"]
 
 [tool.ruff]
 line-length = 100

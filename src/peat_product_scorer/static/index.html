@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ray Peat Product Scorer</title>
+    <title>Ray Peat Library and Product Scorer</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -11,13 +11,54 @@
       <section class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Spanish supermarket nutrition evaluator</p>
-            <h1>Ray Peat Product Scorer</h1>
+            <p class="eyebrow">Ray Peat resources and supermarket evaluator</p>
+            <h1>Ray Peat Library</h1>
           </div>
-          <div id="serviceStatus" class="status-pill">Checking service</div>
+          <div class="topbar-actions">
+            <nav class="view-switcher" aria-label="Primary view">
+              <button id="libraryViewButton" class="view-button active" type="button">Articles</button>
+              <button id="evaluatorViewButton" class="view-button" type="button">Evaluator</button>
+            </nav>
+            <div id="serviceStatus" class="status-pill">Checking service</div>
+          </div>
         </header>
 
-        <div class="main-grid">
+        <section id="libraryView" class="library-view" aria-label="Ray Peat article library">
+          <div class="library-toolbar">
+            <label class="field-group search-field">
+              <span>Search articles</span>
+              <input id="articleSearch" type="search" autocomplete="off" placeholder="Search by title, topic, or PDF name" />
+            </label>
+            <label class="field-group language-field">
+              <span>Language</span>
+              <select id="articleLanguage">
+                <option value="all">All</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="library-summary">
+            <div>
+              <span>Resources</span>
+              <strong id="articleCount">0</strong>
+            </div>
+            <div>
+              <span>English</span>
+              <strong id="englishCount">0</strong>
+            </div>
+            <div>
+              <span>Spanish</span>
+              <strong id="spanishCount">0</strong>
+            </div>
+          </div>
+
+          <div id="articleList" class="article-list"></div>
+        </section>
+
+        <div id="evaluatorView" class="main-grid hidden">
           <section class="control-panel" aria-label="Score controls">
             <div class="segmented" role="tablist" aria-label="Input mode">
               <button id="urlMode" class="segment active" type="button">URL</button>

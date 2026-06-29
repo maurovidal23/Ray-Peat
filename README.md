@@ -10,6 +10,7 @@ This is not medical advice. Ray Peat's writing is not the same as mainstream nut
 - Normalizes common Spanish nutrition labels such as `grasas`, `hidratos de carbono`, `azucares`, `sal`, and `proteinas`.
 - Applies a Ray Peat-style rule set focused on PUFA oils, dairy/fruit sugars, calcium/phosphorus balance, additives, fortified iron, gums, starch load, and protein quality.
 - Returns a numeric score plus a human-readable comment written as if an evaluator were reviewing the product.
+- Serves a searchable Ray Peat article library copied from `maurovidal23/RAY_PEAT`, including English and Spanish PDFs.
 
 ## Supermarket Connectors
 
@@ -93,12 +94,13 @@ Run the local web service:
 uvicorn peat_product_scorer.web_app:app --host 127.0.0.1 --port 8090
 ```
 
-Open `http://127.0.0.1:8090` to score a supermarket URL or paste a product JSON payload.
+Open `http://127.0.0.1:8090` to browse the article library or switch to the evaluator to score a supermarket URL / product JSON payload.
 
 API endpoints:
 
 - `GET /health` returns service status for deployment health checks.
 - `GET /api/connectors` returns verified and fallback supermarket connectors.
+- `GET /api/articles` returns the packaged article PDF index.
 - `POST /api/score` scores either `{ "url": "..." }` or `{ "product": { ... } }`.
 
 Example API request:

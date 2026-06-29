@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from typing import Any
+from unicodedata import normalize
+from urllib.parse import quote
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -17,6 +19,7 @@ from .supermarkets import fetch_product
 from .supermarkets.adapters import ADAPTERS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+ARTICLE_PDF_DIR = STATIC_DIR / "articles" / "pdfs"
 
 
 class ScoreRequest(BaseModel):
@@ -59,6 +62,23 @@ def connectors() -> dict[str, Any]:
                 "status": "verified" if adapter.name in verified else "fallback",
             }
             for adapter in ADAPTERS
+        ]
+    }
+
+
+@app.get("/api/articles")
+def articles() -> dict[str, Any]:
+    files = sorted(ARTICLE_PDF_DIR.glob("*.pdf"), key=lambda path: _article_title(path).lower())
+    return {
+        "articles": [
+            {
+                "title": _article_title(path),
+                "filename": path.name,
+                "language": _article_language(path),
+                "kind": "book" if path.name == "Ray_Peat_Libro.pdf" else "article",
+                "url": f"/static/articles/pdfs/{quote(path.name)}",
+            }
+            for path in files
         ]
     }
 
@@ -106,3 +126,18 @@ def _product_from_payload(payload: dict[str, Any]) -> Product:
         )
     except KeyError as exc:
         raise HTTPException(status_code=422, detail="Product payload requires a name.") from exc
+
+
+def _article_title(path: Path) -> str:
+    if path.name == "Ray_Peat_Libro.pdf":
+        return "Ray Peat Libro"
+    return path.stem.replace("_", " ").strip()
+
+
+def _article_language(path: Path) -> str:
+    title = normalize("NFKD", _article_title(path)).encode("ascii", "ignore").decode().casefold()
+    if title.startswith("el ") or title.startswith("sin titulo"):
+        return "es"
+    if title.startswith("ruolo "):
+        return "other"
+    return "en"

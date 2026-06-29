@@ -1,4 +1,4 @@
-﻿const examples = [
+const examples = [
   {
     name: "Mercadona sunflower oil",
     source: "Mercadona",
@@ -28,6 +28,16 @@
 
 const els = {
   serviceStatus: document.querySelector("#serviceStatus"),
+  libraryViewButton: document.querySelector("#libraryViewButton"),
+  evaluatorViewButton: document.querySelector("#evaluatorViewButton"),
+  libraryView: document.querySelector("#libraryView"),
+  evaluatorView: document.querySelector("#evaluatorView"),
+  articleSearch: document.querySelector("#articleSearch"),
+  articleLanguage: document.querySelector("#articleLanguage"),
+  articleCount: document.querySelector("#articleCount"),
+  englishCount: document.querySelector("#englishCount"),
+  spanishCount: document.querySelector("#spanishCount"),
+  articleList: document.querySelector("#articleList"),
   connectorCount: document.querySelector("#connectorCount"),
   examplesList: document.querySelector("#examplesList"),
   scoreForm: document.querySelector("#scoreForm"),
@@ -58,6 +68,16 @@ const els = {
 };
 
 let mode = "url";
+let currentView = "library";
+let articles = [];
+
+function setView(nextView) {
+  currentView = nextView;
+  els.libraryView.classList.toggle("hidden", currentView !== "library");
+  els.evaluatorView.classList.toggle("hidden", currentView !== "evaluator");
+  els.libraryViewButton.classList.toggle("active", currentView === "library");
+  els.evaluatorViewButton.classList.toggle("active", currentView === "evaluator");
+}
 
 function setMode(nextMode) {
   mode = nextMode;
@@ -86,6 +106,7 @@ function renderExamples() {
     button.className = "example-button";
     button.innerHTML = `<strong>${example.name}</strong><span>${example.source}</span>`;
     button.addEventListener("click", () => {
+      setView("evaluator");
       setMode("url");
       els.productUrl.value = example.url;
       els.productUrl.focus();
@@ -106,6 +127,80 @@ async function loadConnectors() {
     els.connectorCount.textContent = `${examples.length} examples`;
     els.serviceStatus.textContent = "Service unavailable";
   }
+}
+
+async function loadArticles() {
+  try {
+    const response = await fetch("/api/articles");
+    const data = await response.json();
+    articles = data.articles || [];
+    updateArticleSummary();
+    renderArticles();
+  } catch (error) {
+    els.articleList.innerHTML = `<p class="message error">Article library could not be loaded.</p>`;
+  }
+}
+
+function updateArticleSummary() {
+  els.articleCount.textContent = articles.length;
+  els.englishCount.textContent = articles.filter((article) => article.language === "en").length;
+  els.spanishCount.textContent = articles.filter((article) => article.language === "es").length;
+}
+
+function renderArticles() {
+  const query = els.articleSearch.value.trim().toLowerCase();
+  const language = els.articleLanguage.value;
+  const filtered = articles.filter((article) => {
+    const matchesQuery = !query || `${article.title} ${article.filename}`.toLowerCase().includes(query);
+    const matchesLanguage = language === "all" || article.language === language;
+    return matchesQuery && matchesLanguage;
+  });
+
+  els.articleList.innerHTML = "";
+  if (!filtered.length) {
+    els.articleList.innerHTML = `<p class="message">No articles match this search.</p>`;
+    return;
+  }
+
+  filtered.forEach((article) => {
+    const card = document.createElement("article");
+    card.className = "article-card";
+
+    const meta = document.createElement("div");
+    meta.className = "article-meta";
+
+    const language = document.createElement("span");
+    language.className = "band";
+    language.textContent = languageLabel(article.language);
+
+    const kind = document.createElement("span");
+    kind.textContent = article.kind;
+
+    meta.append(language, kind);
+
+    const title = document.createElement("h2");
+    title.textContent = article.title;
+
+    const actions = document.createElement("div");
+    actions.className = "article-actions";
+
+    const open = document.createElement("a");
+    open.className = "primary-button link-button";
+    open.href = article.url;
+    open.target = "_blank";
+    open.rel = "noreferrer";
+    open.textContent = "Open PDF";
+
+    actions.append(open);
+    card.append(meta, title, actions);
+    els.articleList.appendChild(card);
+  });
+}
+
+function languageLabel(language) {
+  if (language === "es") return "Spanish";
+  if (language === "en") return "English";
+  return "Other";
 }
 
 async function submitScore(event) {
@@ -246,9 +341,14 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+els.libraryViewButton.addEventListener("click", () => setView("library"));
+els.evaluatorViewButton.addEventListener("click", () => setView("evaluator"));
+els.articleSearch.addEventListener("input", renderArticles);
+els.articleLanguage.addEventListener("change", renderArticles);
 els.urlMode.addEventListener("click", () => setMode("url"));
 els.jsonMode.addEventListener("click", () => setMode("json"));
 els.scoreForm.addEventListener("submit", submitScore);
 
 renderExamples();
 loadConnectors();
+loadArticles();
