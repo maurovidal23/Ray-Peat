@@ -81,6 +81,7 @@ function articleIdFromLocation() {
 
 function setView(nextView) {
   currentView = nextView;
+  document.body.dataset.view = nextView;
   els.libraryView.classList.toggle("hidden", currentView !== "library");
   els.evaluatorView.classList.toggle("hidden", currentView !== "evaluator");
   els.libraryViewButton.classList.toggle("active", currentView === "library");
@@ -555,7 +556,9 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-els.libraryViewButton.addEventListener("click", () => setView("library"));
+els.libraryViewButton.addEventListener("click", () => {
+  window.location.href = "/articles";
+});
 els.evaluatorViewButton.addEventListener("click", () => setView("evaluator"));
 els.articleSearch.addEventListener("input", renderArticles);
 els.articleLanguage.addEventListener("change", renderArticles);

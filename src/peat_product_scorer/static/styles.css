@@ -986,3 +986,191 @@ select:focus {
     padding: 18px;
   }
 }
+
+/* Evaluator page aligned with the reference article library */
+body[data-view="evaluator"] {
+  --page: #f6f1e7;
+  --panel: #faf6ec;
+  --panel-strong: #ede5d2;
+  --ink: #1d1a16;
+  --muted: #7a6f5d;
+  --line: #dcd2bb;
+  --green: #a84317;
+  --green-soft: #f1ddcf;
+  --shadow: 0 1px 2px rgba(26, 22, 18, 0.04), 0 8px 24px -12px rgba(26, 22, 18, 0.12);
+  background: var(--page);
+  font-family: "Source Serif 4", Georgia, serif;
+}
+
+body[data-view="evaluator"] .shell {
+  padding: 0;
+}
+
+body[data-view="evaluator"] .workspace {
+  max-width: 1280px;
+  padding: 0 28px 64px;
+}
+
+body[data-view="evaluator"] .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  align-items: center;
+  margin: 0 -28px 48px;
+  padding: 14px 28px;
+  background: rgba(246, 241, 231, 0.92);
+  border-bottom: 1px solid #e7decb;
+  backdrop-filter: saturate(140%) blur(8px);
+}
+
+body[data-view="evaluator"] .app-header h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(34px, 4vw, 58px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+body[data-view="evaluator"] .eyebrow,
+body[data-view="evaluator"] .view-button,
+body[data-view="evaluator"] .status-pill,
+body[data-view="evaluator"] .field-group span,
+body[data-view="evaluator"] .section-heading,
+body[data-view="evaluator"] .segment,
+body[data-view="evaluator"] .primary-button,
+body[data-view="evaluator"] .example-button,
+body[data-view="evaluator"] .meta-grid,
+body[data-view="evaluator"] .band {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+body[data-view="evaluator"] .eyebrow {
+  color: #a84317;
+  letter-spacing: 0.22em;
+}
+
+body[data-view="evaluator"] .view-switcher {
+  background: transparent;
+  gap: 8px;
+}
+
+body[data-view="evaluator"] .view-button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 13px;
+  background: transparent;
+  color: #3a342c;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+body[data-view="evaluator"] .view-button.active,
+body[data-view="evaluator"] .view-button:hover {
+  border-color: #a84317;
+  background: var(--panel);
+  color: #a84317;
+  box-shadow: none;
+}
+
+body[data-view="evaluator"] .main-grid {
+  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  gap: 28px;
+}
+
+body[data-view="evaluator"] .control-panel,
+body[data-view="evaluator"] .result-panel {
+  border-color: var(--line);
+  border-radius: 0;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+body[data-view="evaluator"] .control-panel {
+  padding: 24px;
+  top: 96px;
+}
+
+body[data-view="evaluator"] .result-panel {
+  padding: 28px;
+}
+
+body[data-view="evaluator"] input,
+body[data-view="evaluator"] textarea,
+body[data-view="evaluator"] select {
+  border-color: var(--line);
+  border-radius: 0;
+  background: #fffaf0;
+}
+
+body[data-view="evaluator"] input:focus,
+body[data-view="evaluator"] textarea:focus,
+body[data-view="evaluator"] select:focus {
+  border-color: #a84317;
+  box-shadow: 0 0 0 3px rgba(168, 67, 23, 0.08);
+}
+
+body[data-view="evaluator"] .segmented {
+  border-color: var(--line);
+  border-radius: 999px;
+  background: #ede5d2;
+}
+
+body[data-view="evaluator"] .segment {
+  border-radius: 999px;
+}
+
+body[data-view="evaluator"] .segment.active,
+body[data-view="evaluator"] .primary-button {
+  background: #1d1a16;
+  color: #f6f1e7;
+}
+
+body[data-view="evaluator"] .primary-button {
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+body[data-view="evaluator"] .section-heading h2,
+body[data-view="evaluator"] .section-heading h3,
+body[data-view="evaluator"] .score-copy h2,
+body[data-view="evaluator"] .empty-state h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+body[data-view="evaluator"] .example-button,
+body[data-view="evaluator"] .nutrition-chip,
+body[data-view="evaluator"] .reason-item,
+body[data-view="evaluator"] .meta-grid > div {
+  border-color: var(--line);
+  border-radius: 0;
+  background: #fffaf0;
+}
+
+body[data-view="evaluator"] .score-gauge {
+  border-color: var(--line);
+  background: conic-gradient(#a84317 calc(var(--score) * 1%), #e7decb 0);
+}
+
+body[data-view="evaluator"] .link-button {
+  border-radius: 999px;
+}
+
+@media (max-width: 920px) {
+  body[data-view="evaluator"] .workspace {
+    padding: 0 16px 40px;
+  }
+
+  body[data-view="evaluator"] .topbar {
+    margin: 0 -16px 28px;
+    padding: 14px 16px;
+  }
+
+  body[data-view="evaluator"] .main-grid {
+    gap: 18px;
+  }
+}
