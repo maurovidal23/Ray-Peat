@@ -10,7 +10,7 @@ This is not medical advice. Ray Peat's writing is not the same as mainstream nut
 - Normalizes common Spanish nutrition labels such as `grasas`, `hidratos de carbono`, `azucares`, `sal`, and `proteinas`.
 - Applies a Ray Peat-style rule set focused on PUFA oils, dairy/fruit sugars, calcium/phosphorus balance, additives, fortified iron, gums, starch load, and protein quality.
 - Returns a numeric score plus a human-readable comment written as if an evaluator were reviewing the product.
-- Serves a searchable Ray Peat article library copied from `maurovidal23/RAY_PEAT`, including English and Spanish PDFs.
+- Serves a searchable Ray Peat article reader generated from `maurovidal23/RAY_PEAT` text exports, with formatted in-app reading instead of raw PDFs.
 
 ## Supermarket Connectors
 
@@ -100,7 +100,8 @@ API endpoints:
 
 - `GET /health` returns service status for deployment health checks.
 - `GET /api/connectors` returns verified and fallback supermarket connectors.
-- `GET /api/articles` returns the packaged article PDF index.
+- `GET /api/articles` returns formatted article summaries.
+- `GET /api/articles/{article_id}` returns the selected article paragraphs.
 - `POST /api/score` scores either `{ "url": "..." }` or `{ "product": { ... } }`.
 
 Example API request:

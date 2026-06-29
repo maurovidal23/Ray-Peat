@@ -12,7 +12,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Ray Peat resources and supermarket evaluator</p>
-            <h1>Ray Peat Library</h1>
+            <h1>Ray Peat Articles</h1>
           </div>
           <div class="topbar-actions">
             <nav class="view-switcher" aria-label="Primary view">
@@ -27,7 +27,7 @@
           <div class="library-toolbar">
             <label class="field-group search-field">
               <span>Search articles</span>
-              <input id="articleSearch" type="search" autocomplete="off" placeholder="Search by title, topic, or PDF name" />
+              <input id="articleSearch" type="search" autocomplete="off" placeholder="Search by title or article text" />
             </label>
             <label class="field-group language-field">
               <span>Language</span>
@@ -55,7 +55,15 @@
             </div>
           </div>
 
-          <div id="articleList" class="article-list"></div>
+          <div class="reader-layout">
+            <aside id="articleList" class="article-list" aria-label="Articles"></aside>
+            <article id="articleReader" class="article-reader" aria-live="polite">
+              <div class="empty-state reader-empty">
+                <h2>Select an article</h2>
+                <p>Search or choose an article from the list to read it in formatted text.</p>
+              </div>
+            </article>
+          </div>
         </section>
 
         <div id="evaluatorView" class="main-grid hidden">

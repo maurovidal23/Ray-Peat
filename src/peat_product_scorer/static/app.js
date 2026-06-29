@@ -38,6 +38,7 @@ const els = {
   englishCount: document.querySelector("#englishCount"),
   spanishCount: document.querySelector("#spanishCount"),
   articleList: document.querySelector("#articleList"),
+  articleReader: document.querySelector("#articleReader"),
   connectorCount: document.querySelector("#connectorCount"),
   examplesList: document.querySelector("#examplesList"),
   scoreForm: document.querySelector("#scoreForm"),
@@ -70,6 +71,7 @@ const els = {
 let mode = "url";
 let currentView = "library";
 let articles = [];
+let selectedArticleId = null;
 
 function setView(nextView) {
   currentView = nextView;
@@ -134,8 +136,12 @@ async function loadArticles() {
     const response = await fetch("/api/articles");
     const data = await response.json();
     articles = data.articles || [];
+    selectedArticleId = articles[0]?.id || null;
     updateArticleSummary();
     renderArticles();
+    if (selectedArticleId) {
+      await renderArticleDetail(selectedArticleId);
+    }
   } catch (error) {
     els.articleList.innerHTML = `<p class="message error">Article library could not be loaded.</p>`;
   }
@@ -151,7 +157,7 @@ function renderArticles() {
   const query = els.articleSearch.value.trim().toLowerCase();
   const language = els.articleLanguage.value;
   const filtered = articles.filter((article) => {
-    const matchesQuery = !query || `${article.title} ${article.filename}`.toLowerCase().includes(query);
+    const matchesQuery = !query || `${article.title} ${article.excerpt}`.toLowerCase().includes(query);
     const matchesLanguage = language === "all" || article.language === language;
     return matchesQuery && matchesLanguage;
   });
@@ -162,39 +168,77 @@ function renderArticles() {
     return;
   }
 
+  if (!filtered.some((article) => article.id === selectedArticleId)) {
+    selectedArticleId = filtered[0].id;
+    renderArticleDetail(selectedArticleId);
+  }
+
   filtered.forEach((article) => {
-    const card = document.createElement("article");
-    card.className = "article-card";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "article-row";
+    button.classList.toggle("active", article.id === selectedArticleId);
+    button.innerHTML = `
+      <span class="article-row-meta">${languageLabel(article.language)} / ${formatWordCount(article.word_count)}</span>
+      <strong>${article.title}</strong>
+      <span>${article.excerpt}</span>
+    `;
+    button.addEventListener("click", async () => {
+      selectedArticleId = article.id;
+      renderArticles();
+      await renderArticleDetail(article.id);
+    });
+    els.articleList.appendChild(button);
+  });
+}
 
-    const meta = document.createElement("div");
-    meta.className = "article-meta";
-
-    const language = document.createElement("span");
-    language.className = "band";
-    language.textContent = languageLabel(article.language);
-
-    const kind = document.createElement("span");
-    kind.textContent = article.kind;
-
-    meta.append(language, kind);
+async function renderArticleDetail(articleId) {
+  els.articleReader.innerHTML = `<p class="message">Loading article...</p>`;
+  try {
+    const response = await fetch(`/api/articles/${encodeURIComponent(articleId)}`);
+    const article = await response.json();
+    if (!response.ok) {
+      throw new Error(article.detail || "Article not found.");
+    }
 
     const title = document.createElement("h2");
     title.textContent = article.title;
 
-    const actions = document.createElement("div");
-    actions.className = "article-actions";
+    const meta = document.createElement("div");
+    meta.className = "reader-meta";
+    meta.innerHTML = `<span>${languageLabel(article.language)}</span><span>${formatWordCount(article.word_count)}</span>`;
 
-    const open = document.createElement("a");
-    open.className = "primary-button link-button";
-    open.href = article.url;
-    open.target = "_blank";
-    open.rel = "noreferrer";
-    open.textContent = "Open PDF";
+    const body = document.createElement("div");
+    body.className = "article-body";
+    article.paragraphs.forEach((paragraph) => {
+      if (/^references\b/i.test(paragraph)) {
+        const heading = document.createElement("h3");
+        heading.textContent = "References";
+        body.appendChild(heading);
+        const rest = paragraph.replace(/^references\b[:\s]*/i, "").trim();
+        if (rest) {
+          const p = document.createElement("p");
+          p.textContent = rest;
+          body.appendChild(p);
+        }
+        return;
+      }
+      const p = document.createElement("p");
+      p.textContent = paragraph;
+      body.appendChild(p);
+    });
 
-    actions.append(open);
-    card.append(meta, title, actions);
-    els.articleList.appendChild(card);
-  });
+    els.articleReader.innerHTML = "";
+    els.articleReader.append(meta, title, body);
+    els.articleReader.scrollTop = 0;
+  } catch (error) {
+    els.articleReader.innerHTML = `<p class="message error">${error.message}</p>`;
+  }
+}
+
+function formatWordCount(value) {
+  if (!value) return "0 words";
+  return `${value.toLocaleString()} words`;
 }
 
 function languageLabel(language) {
@@ -202,6 +246,7 @@ function languageLabel(language) {
   if (language === "en") return "English";
   return "Other";
 }
+
 
 async function submitScore(event) {
   event.preventDefault();

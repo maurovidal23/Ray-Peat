@@ -1,9 +1,9 @@
 ﻿from __future__ import annotations
 
+import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from unicodedata import normalize
-from urllib.parse import quote
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -19,7 +19,7 @@ from .supermarkets import fetch_product
 from .supermarkets.adapters import ADAPTERS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-ARTICLE_PDF_DIR = STATIC_DIR / "articles" / "pdfs"
+ARTICLE_DATA_PATH = STATIC_DIR / "articles" / "ray_peat_articles.json"
 
 
 class ScoreRequest(BaseModel):
@@ -68,19 +68,27 @@ def connectors() -> dict[str, Any]:
 
 @app.get("/api/articles")
 def articles() -> dict[str, Any]:
-    files = sorted(ARTICLE_PDF_DIR.glob("*.pdf"), key=lambda path: _article_title(path).lower())
     return {
         "articles": [
             {
-                "title": _article_title(path),
-                "filename": path.name,
-                "language": _article_language(path),
-                "kind": "book" if path.name == "Ray_Peat_Libro.pdf" else "article",
-                "url": f"/static/articles/pdfs/{quote(path.name)}",
+                "id": article["id"],
+                "title": article["title"],
+                "language": article["language"],
+                "excerpt": article["excerpt"],
+                "word_count": article["word_count"],
+                "source": article["source"],
             }
-            for path in files
+            for article in _load_articles()
         ]
     }
+
+
+@app.get("/api/articles/{article_id}")
+def article_detail(article_id: str) -> dict[str, Any]:
+    for article in _load_articles():
+        if article["id"] == article_id:
+            return article
+    raise HTTPException(status_code=404, detail="Article not found.")
 
 
 @app.post("/api/score")
@@ -128,16 +136,10 @@ def _product_from_payload(payload: dict[str, Any]) -> Product:
         raise HTTPException(status_code=422, detail="Product payload requires a name.") from exc
 
 
-def _article_title(path: Path) -> str:
-    if path.name == "Ray_Peat_Libro.pdf":
-        return "Ray Peat Libro"
-    return path.stem.replace("_", " ").strip()
-
-
-def _article_language(path: Path) -> str:
-    title = normalize("NFKD", _article_title(path)).encode("ascii", "ignore").decode().casefold()
-    if title.startswith("el ") or title.startswith("sin titulo"):
-        return "es"
-    if title.startswith("ruolo "):
-        return "other"
-    return "en"
+@lru_cache(maxsize=1)
+def _load_articles() -> list[dict[str, Any]]:
+    try:
+        data = json.loads(ARTICLE_DATA_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError("Article data file is missing.") from exc
+    return data.get("articles", [])
