@@ -63,7 +63,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/version")
 def api_version() -> dict[str, str]:
-    return {"version": __version__, "build": "dia-browser-fallback-f5378a0"}
+    return {"version": __version__, "build": "undefined-route-2268114"}
 
 
 @app.get("/api/connectors")
