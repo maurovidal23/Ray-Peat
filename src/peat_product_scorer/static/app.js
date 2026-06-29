@@ -458,6 +458,7 @@ function renderResult(result) {
   els.resultView.classList.remove("hidden");
 
   els.scoreGauge.style.setProperty("--score", result.score);
+  els.scoreGauge.style.setProperty("--score-color", scoreColor(result.score));
   els.scoreValue.textContent = result.score;
   els.scoreBand.textContent = result.band;
   els.scoreBand.className = `band ${bandClass(result.band)}`;
@@ -538,6 +539,12 @@ function isHttpUrl(value) {
 
 function formatDelta(delta) {
   return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
+function scoreColor(score) {
+  const normalizedScore = Math.max(0, Math.min(100, Number(score) || 0));
+  const hue = Math.round((normalizedScore / 100) * 120);
+  return `hsl(${hue}, 58%, 38%)`;
 }
 
 function formatNumber(value) {

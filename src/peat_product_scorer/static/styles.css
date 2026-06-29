@@ -307,7 +307,7 @@ select:focus {
   border-radius: 50%;
   display: grid;
   place-content: center;
-  background: conic-gradient(var(--green) calc(var(--score) * 1%), #e6e9e2 0);
+  background: conic-gradient(var(--score-color, var(--green)) calc(var(--score) * 1%), #e6e9e2 0);
   position: relative;
 }
 
@@ -442,13 +442,13 @@ select:focus {
 }
 
 .delta.positive {
-  color: var(--green);
-  background: var(--green-soft);
+  color: #2f7d52;
+  background: #dfeee5;
 }
 
 .delta.negative {
-  color: var(--red);
-  background: var(--red-soft);
+  color: #b5453c;
+  background: #f8dfdc;
 }
 
 .reason-row strong {
@@ -1256,7 +1256,7 @@ body[data-view="evaluator"] .example-button:hover {
 }
 
 body[data-view="evaluator"] .score-gauge {
-  background: conic-gradient(var(--green) calc(var(--score) * 1%), #e7decb 0);
+  background: conic-gradient(var(--score-color, var(--green)) calc(var(--score) * 1%), #e7decb 0);
 }
 
 body[data-view="evaluator"] .score-gauge::after {
