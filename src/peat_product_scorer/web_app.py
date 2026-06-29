@@ -80,7 +80,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/version")
 def api_version() -> dict[str, str]:
-    return {"version": __version__, "build": "evaluator-reference-ui-e145e87"}
+    return {"version": __version__, "build": "evaluator-score-colors-12f7bed"}
 
 
 @app.get("/api/connectors")
