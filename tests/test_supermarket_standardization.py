@@ -191,8 +191,8 @@ class SupermarketStandardizationTests(unittest.TestCase):
             alcampo_results = search_products("zumo", max_results=3, providers=["Alcampo"])
 
         self.assertEqual([result.source for result in dia_results], ["DIA"])
-        self.assertEqual(dia_results[0].display_name, "Queso en DIA")
-        self.assertIn("/search?q=queso", dia_results[0].url)
+        self.assertEqual(dia_results[0].product_id, "263518")
+        self.assertIn("/quesos/untable-y-en-porciones/p/263518", dia_results[0].url)
         self.assertEqual([result.source for result in alcampo_results], ["Alcampo"])
         self.assertEqual(alcampo_results[0].display_name, "Zumo en Alcampo")
         self.assertIn("search?text=zumo", alcampo_results[0].url)

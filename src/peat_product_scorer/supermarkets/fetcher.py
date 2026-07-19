@@ -74,6 +74,51 @@ FALLBACK_SEARCH_PRODUCTS = (
         "terms": ("leche", "entera", "dia", "lactea"),
     },
     {
+        "source": "DIA",
+        "display_name": "Queso de untar natural Dia Lactea 250 g",
+        "product_id": "263518",
+        "url": "https://www.dia.es/quesos/untable-y-en-porciones/p/263518",
+        "brand": "Dia Lactea",
+        "category": "Queso",
+        "terms": ("queso", "untar", "dia", "lactea"),
+    },
+    {
+        "source": "DIA",
+        "display_name": "Bebida de zumo tropical sin azucares Dia 1 L",
+        "product_id": "205791",
+        "url": "https://www.dia.es/zumos/bebidas-de-zumo/p/205791",
+        "brand": "DIA",
+        "category": "Zumo",
+        "terms": ("zumo", "tropical", "dia"),
+    },
+    {
+        "source": "DIA",
+        "display_name": "Mantequilla sin sal Dia Lactea 250 g",
+        "product_id": "268201",
+        "url": "https://www.dia.es/huevos-leche-y-mantequilla/mantequilla-y-margarina/p/268201",
+        "brand": "Dia Lactea",
+        "category": "Mantequilla",
+        "terms": ("mantequilla", "sin sal", "dia", "lactea"),
+    },
+    {
+        "source": "DIA",
+        "display_name": "Aceite de oliva virgen extra Dia La Almazara del Olivar 1 L",
+        "product_id": "112529",
+        "url": "https://www.dia.es/aceites-salsas-y-especias/aceites/p/112529",
+        "brand": "Dia La Almazara del Olivar",
+        "category": "Aceite de oliva",
+        "terms": ("aceite", "oliva", "virgen extra", "dia", "almazara"),
+    },
+    {
+        "source": "DIA",
+        "display_name": "Chocolate con leche Dia Temptation 125 g",
+        "product_id": "300067",
+        "url": "https://www.dia.es/desayunos-dulces-y-pan/chocolates/p/300067",
+        "brand": "Dia Temptation",
+        "category": "Chocolate",
+        "terms": ("chocolate", "dia", "temptation"),
+    },
+    {
         "source": "Alcampo",
         "display_name": "Auchan leche entera de vaca 6 x 1 L",
         "product_id": "54178",
@@ -140,10 +185,13 @@ def _fallback_search_products(
 ) -> list[SearchResult]:
     selected = _normalize_provider_filter(providers)
     query_terms = _search_terms(query)
+    category = _fallback_category_for_query(query)
     results: list[SearchResult] = []
     for item in FALLBACK_SEARCH_PRODUCTS:
         source = str(item["source"])
         if not _provider_selected(source, selected):
+            continue
+        if category and item.get("category") != category["label"]:
             continue
         haystack = " ".join([
             str(item["display_name"]),

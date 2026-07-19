@@ -727,7 +727,8 @@ async function submitBestProducts(event) {
     });
     const data = await parseJsonResponse(response);
     if (!response.ok) throw new Error(data.detail || "Products could not be searched.");
-    renderBestProducts(data.results || []);
+    const results = await enrichDiaSearchScores(data.results || []);
+    renderBestProducts(results);
     const providerLabel = provider === "all" ? "all providers" : provider;
     setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
   } catch (error) {
@@ -736,6 +737,31 @@ async function submitBestProducts(event) {
   } finally {
     setBestProductsLoading(false);
   }
+}
+
+async function enrichDiaSearchScores(results) {
+  const enriched = [];
+  for (const item of results) {
+    if (shouldScoreDiaSearchResultInBrowser(item)) {
+      try {
+        const exactScore = await scoreDiaUrlInBrowser(item.search.url);
+        enriched.push({ ...item, score: exactScore, error: null });
+        continue;
+      } catch (error) {
+        enriched.push(item);
+        continue;
+      }
+    }
+    enriched.push(item);
+  }
+  return enriched;
+}
+
+function shouldScoreDiaSearchResultInBrowser(item) {
+  const source = item?.search?.source || item?.score?.product?.source;
+  const url = item?.search?.url || item?.score?.product?.url;
+  if (source !== "DIA" || !item?.error || !url) return false;
+  return isDiaProductUrl(url);
 }
 
 function renderBestProducts(results) {
