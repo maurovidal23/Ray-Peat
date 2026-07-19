@@ -89,6 +89,7 @@ def search_products(
     max_results: int = 10,
     providers: list[str] | None = None,
 ) -> list[SearchResult]:
+    query = _normalize_search_query(query)
     per_source = max(4, min(max_results, 8))
     selected = _normalize_provider_filter(providers)
     provider_results: list[list[SearchResult]] = []
@@ -150,6 +151,22 @@ def _fallback_search_products(
         if len(results) >= max_results:
             break
     return results
+
+def _normalize_search_query(query: str) -> str:
+    cleaned = re.sub(r"\s+", " ", query).strip()
+    generic_browser_terms = {
+        "",
+        "none",
+        "null",
+        "undefined",
+        "product",
+        "products",
+        "producto",
+        "productos",
+        "best product",
+        "best products",
+    }
+    return "leche" if cleaned.lower() in generic_browser_terms else cleaned
 
 
 def available_search_providers() -> list[str]:

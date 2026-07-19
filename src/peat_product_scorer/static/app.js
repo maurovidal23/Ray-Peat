@@ -691,15 +691,29 @@ function renderSearchProviders(providers) {
   });
 }
 
+function normalizeBestProductsQuery(query) {
+  const cleaned = query.replace(/\s+/g, " ").trim();
+  const genericBrowserTerms = new Set([
+    "",
+    "none",
+    "null",
+    "undefined",
+    "product",
+    "products",
+    "producto",
+    "productos",
+    "best product",
+    "best products",
+  ]);
+  return genericBrowserTerms.has(cleaned.toLowerCase()) ? predefinedSearches[0].query : cleaned;
+}
+
 async function submitBestProducts(event) {
   event.preventDefault();
-  let query = els.bestProductsQuery.value.trim();
+  let query = normalizeBestProductsQuery(els.bestProductsQuery.value);
   const maxResults = Number(els.bestProductsLimit.value) || 10;
   const provider = els.bestProductsProvider.value || "all";
-  if (!query) {
-    query = predefinedSearches[0].query;
-    els.bestProductsQuery.value = query;
-  }
+  els.bestProductsQuery.value = query;
 
   setView("best");
   setBestProductsLoading(true);
