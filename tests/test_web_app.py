@@ -68,6 +68,26 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(data["product"]["source"], "DIA")
         self.assertEqual(data["product"]["missing_fields"], [])
 
+    def test_search_provider_options_endpoint(self) -> None:
+        response = self.client.get("/api/search-providers")
+
+        self.assertEqual(response.status_code, 200)
+        providers = response.json()["providers"]
+        self.assertIn("all", providers)
+        self.assertIn("Mercadona", providers)
+        self.assertIn("Alcampo", providers)
+
+    def test_search_endpoint_passes_selected_provider(self) -> None:
+        with patch("peat_product_scorer.web_app.search_products", return_value=[]) as search_mock:
+            response = self.client.post(
+                "/api/search",
+                json={"q": "leche", "max_results": 5, "provider": "Alcampo"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        search_mock.assert_called_once_with("leche", max_results=5, providers=["Alcampo"])
+        self.assertEqual(response.json()["provider"], "Alcampo")
+
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")
 

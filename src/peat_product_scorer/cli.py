@@ -10,7 +10,7 @@ from rich.table import Table
 from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
-from .supermarkets import fetch_product, search_products, search_dia_products, search_mercadona_products
+from .supermarkets import fetch_product, search_products
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -34,16 +34,12 @@ def score_url(url: str) -> None:
 @app.command("search")
 def search(
     query: str,
-    source: str = typer.Option("all", help="Supermarket source: dia, mercadona, or all"),
+    source: str = typer.Option("all", help="Supermarket source/provider name, or all"),
     max_results: int = typer.Option(10, help="Maximum results to return"),
 ) -> None:
     """Search for products across supermarkets."""
-    if source == "dia":
-        results = search_dia_products(query, max_results)
-    elif source == "mercadona":
-        results = search_mercadona_products(query, max_results)
-    else:
-        results = search_products(query, max_results)
+    providers = None if source.lower() == "all" else [source]
+    results = search_products(query, max_results, providers=providers)
 
     if not results:
         console.print("[yellow]No products found.[/yellow]")
@@ -63,9 +59,18 @@ def search_score(
     max_results: int = typer.Option(10, help="Maximum results to return"),
     min_score: int = typer.Option(None, help="Minimum score filter (0-100)"),
     sort_by: str = typer.Option("score", help="Sort order: score or name"),
+    source: str = typer.Option("all", help="Supermarket source/provider name, or all"),
 ) -> None:
     """Search for products, fetch details, and score each one."""
-    scored = search_and_score(query, max_results=max_results, max_per_source=max_results, min_score=min_score, sort_by=sort_by)
+    providers = None if source.lower() == "all" else [source]
+    scored = search_and_score(
+        query,
+        max_results=max_results,
+        max_per_source=max_results,
+        min_score=min_score,
+        sort_by=sort_by,
+        providers=providers,
+    )
 
     if not scored:
         console.print("[yellow]No products found or scored.[/yellow]")

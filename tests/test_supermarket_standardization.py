@@ -12,6 +12,7 @@ from peat_product_scorer.supermarkets.fetcher import (
     _load_bonpreu_initial_state,
     _product_from_bonpreu_entity,
     _search_generic_provider,
+    search_products,
     _standardize_ingredient_text,
     _strip_html,
 )
@@ -143,6 +144,27 @@ class SupermarketStandardizationTests(unittest.TestCase):
         results = _interleave_search_results([[dia], [alcampo], [consum]], max_results=3)
 
         self.assertEqual([result.source for result in results], ["DIA", "Alcampo", "Consum"])
+
+    def test_search_products_filters_selected_provider(self) -> None:
+        selected = SearchResult(
+            source="Alcampo",
+            query="leche",
+            display_name="Alcampo leche",
+            product_id="2",
+            url="https://www.compraonline.alcampo.es/products/2",
+        )
+
+        with (
+            patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]) as dia_mock,
+            patch("peat_product_scorer.supermarkets.fetcher._search_mercadona_categories", return_value=[]) as mercadona_mock,
+            patch("peat_product_scorer.supermarkets.fetcher._search_generic_provider", return_value=[selected]) as generic_mock,
+        ):
+            results = search_products("leche", max_results=5, providers=["Alcampo"])
+
+        dia_mock.assert_not_called()
+        mercadona_mock.assert_not_called()
+        generic_mock.assert_called_once()
+        self.assertEqual([result.source for result in results], ["Alcampo"])
 
 
 if __name__ == "__main__":

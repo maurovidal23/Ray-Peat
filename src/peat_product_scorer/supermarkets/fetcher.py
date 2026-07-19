@@ -44,17 +44,47 @@ GENERIC_SEARCH_PROVIDERS = (
 )
 
 
-def search_products(query: str, max_results: int = 10) -> list[SearchResult]:
+def search_products(
+    query: str,
+    max_results: int = 10,
+    providers: list[str] | None = None,
+) -> list[SearchResult]:
     per_source = max(4, min(max_results, 8))
-    provider_results = [
-        _search_dia(query, per_source),
-        _search_mercadona_categories(query, per_source),
-    ]
+    selected = _normalize_provider_filter(providers)
+    provider_results: list[list[SearchResult]] = []
+
+    if _provider_selected("DIA", selected):
+        provider_results.append(_search_dia(query, per_source))
+    if _provider_selected("Mercadona", selected):
+        provider_results.append(_search_mercadona_categories(query, per_source))
+
     provider_results.extend(
         _search_generic_provider(source, template, domain, query, per_source)
         for source, template, domain in GENERIC_SEARCH_PROVIDERS
+        if _provider_selected(source, selected)
     )
     return _interleave_search_results(provider_results, max_results=max_results)
+
+
+
+
+def available_search_providers() -> list[str]:
+    return ["DIA", "Mercadona", *[source for source, _, _ in GENERIC_SEARCH_PROVIDERS]]
+
+
+def _normalize_provider_filter(providers: list[str] | None) -> set[str] | None:
+    if not providers:
+        return None
+    normalized = {provider.strip().lower() for provider in providers if provider and provider.strip()}
+    normalized.discard("all")
+    return normalized or None
+
+
+def _provider_selected(source: str, selected: set[str] | None) -> bool:
+    if selected is None:
+        return True
+    normalized_source = source.lower()
+    return normalized_source in selected
 
 
 def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]:

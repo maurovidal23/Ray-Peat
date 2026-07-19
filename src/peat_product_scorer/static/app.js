@@ -89,6 +89,7 @@ const els = {
   presetSearches: document.querySelector("#presetSearches"),
   bestProductsForm: document.querySelector("#bestProductsForm"),
   bestProductsQuery: document.querySelector("#bestProductsQuery"),
+  bestProductsProvider: document.querySelector("#bestProductsProvider"),
   bestProductsLimit: document.querySelector("#bestProductsLimit"),
   bestProductsButton: document.querySelector("#bestProductsButton"),
   bestProductsMessage: document.querySelector("#bestProductsMessage"),
@@ -667,10 +668,34 @@ function setBestProductsMessage(text, isError = false) {
   els.bestProductsMessage.classList.toggle("error", isError);
 }
 
+
+async function loadSearchProviders() {
+  try {
+    const response = await fetch("/api/search-providers");
+    const data = await response.json();
+    renderSearchProviders(data.providers || []);
+  } catch (error) {
+    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Consum", "Eroski"]);
+  }
+}
+
+function renderSearchProviders(providers) {
+  const selected = els.bestProductsProvider.value || "all";
+  els.bestProductsProvider.innerHTML = "";
+  providers.forEach((provider) => {
+    const option = document.createElement("option");
+    option.value = provider;
+    option.textContent = provider === "all" ? "All providers" : provider;
+    option.selected = provider === selected;
+    els.bestProductsProvider.appendChild(option);
+  });
+}
+
 async function submitBestProducts(event) {
   event.preventDefault();
   let query = els.bestProductsQuery.value.trim();
   const maxResults = Number(els.bestProductsLimit.value) || 10;
+  const provider = els.bestProductsProvider.value || "all";
   if (!query) {
     query = predefinedSearches[0].query;
     els.bestProductsQuery.value = query;
@@ -684,12 +709,13 @@ async function submitBestProducts(event) {
     const response = await fetch("/api/search-score", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ q: query, max_results: maxResults }),
+      body: JSON.stringify({ q: query, max_results: maxResults, provider }),
     });
     const data = await parseJsonResponse(response);
     if (!response.ok) throw new Error(data.detail || "Products could not be searched.");
     renderBestProducts(data.results || []);
-    setBestProductsMessage(`${data.total || 0} products scored for "${query}".`);
+    const providerLabel = provider === "all" ? "all providers" : provider;
+    setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
   } catch (error) {
     els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No ranked products</h2><p>${error.message}</p></div>`;
     setBestProductsMessage(error.message, true);
@@ -771,4 +797,5 @@ setView(currentView);
 renderPresetSearches();
 renderExamples();
 loadConnectors();
+loadSearchProviders();
 loadArticles();

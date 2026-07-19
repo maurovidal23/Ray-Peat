@@ -1315,7 +1315,7 @@ select:focus {
 
 .best-search-panel {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(110px, 150px) auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(170px, 220px) minmax(110px, 150px) auto;
   gap: 12px;
   align-items: end;
   border: 1px solid var(--line);

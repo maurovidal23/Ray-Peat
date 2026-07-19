@@ -16,6 +16,7 @@ from .models import Product, SearchResult
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
+from .supermarkets.fetcher import available_search_providers
 from .supermarkets.adapters import ADAPTERS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -107,13 +108,26 @@ def connectors() -> dict[str, Any]:
 class SearchQuery(BaseModel):
     q: str = Field(..., min_length=1, description="Search query")
     max_results: int = Field(default=10, ge=1, le=50, description="Maximum results")
+    provider: str | None = Field(default=None, description="Provider name or 'all'")
+
+    @property
+    def providers(self) -> list[str] | None:
+        if not self.provider or self.provider.lower() == "all":
+            return None
+        return [self.provider]
+
+
+@app.get("/api/search-providers")
+def search_provider_options() -> dict[str, Any]:
+    return {"providers": ["all", *available_search_providers()]}
 
 
 @app.post("/api/search")
 def search_endpoint(query: SearchQuery) -> dict[str, Any]:
-    results = search_products(query.q, max_results=query.max_results)
+    results = search_products(query.q, max_results=query.max_results, providers=query.providers)
     return {
         "query": query.q,
+        "provider": query.provider or "all",
         "total": len(results),
         "results": [r.model_dump(mode="json") for r in results],
     }
@@ -121,9 +135,15 @@ def search_endpoint(query: SearchQuery) -> dict[str, Any]:
 
 @app.post("/api/search-score")
 def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
-    scored = search_and_score(query.q, max_results=query.max_results, max_per_source=query.max_results)
+    scored = search_and_score(
+        query.q,
+        max_results=query.max_results,
+        max_per_source=query.max_results,
+        providers=query.providers,
+    )
     return {
         "query": query.q,
+        "provider": query.provider or "all",
         "total": len(scored),
         "results": [s.model_dump(mode="json", exclude_none=True) for s in scored],
     }

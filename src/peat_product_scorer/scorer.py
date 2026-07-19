@@ -391,8 +391,9 @@ def search_and_score(
     min_score: int | None = None,
     max_score: int | None = None,
     sort_by: str = "score",
+    providers: list[str] | None = None,
 ) -> list[ScoredSearchResult]:
-    search_results = search_products(query, max_results=max_per_source)
+    search_results = search_products(query, max_results=max_per_source, providers=providers)
     scored: list[ScoredSearchResult] = []
 
     for sr in search_results:
