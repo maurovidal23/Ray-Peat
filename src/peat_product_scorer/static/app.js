@@ -675,7 +675,7 @@ async function loadSearchProviders() {
     const data = await response.json();
     renderSearchProviders(data.providers || []);
   } catch (error) {
-    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Consum", "Eroski", "Bon Preu / Esclat", "Carrefour Espana", "El Corte Ingles", "Aldi ES", "Spar ES", "Hipercor", "Gadis Online", "Coviran", "Caprabo", "Condis", "Froiz"]);
+    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Eroski"]);
   }
 }
 
@@ -751,6 +751,7 @@ function renderBestProducts(results) {
         </div>
         <h2>${productName}</h2>
         <p>${score.comment}</p>
+        ${item.error ? `<p class="result-warning">Limited result: full provider page could not be scored, so this uses search-result evidence.</p>` : ""}
         <div class="component-strip">${componentChips(score.components || [])}</div>
       </div>
       <a href="${product.url || item.search.url || '#'}" target="_blank" rel="noreferrer" class="source-button">Open</a>

@@ -76,6 +76,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("all", providers)
         self.assertIn("Mercadona", providers)
         self.assertIn("Alcampo", providers)
+        self.assertIn("Eroski", providers)
+        self.assertNotIn("Carrefour Espana", providers)
 
     def test_search_endpoint_passes_selected_provider(self) -> None:
         with patch("peat_product_scorer.web_app.search_products", return_value=[]) as search_mock:
@@ -96,6 +98,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn('option value="Mercadona"', response.text)
         self.assertIn('option value="Alcampo"', response.text)
         self.assertIn('option value="Eroski"', response.text)
+        self.assertNotIn('option value="Carrefour Espana"', response.text)
 
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")

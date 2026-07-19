@@ -1543,3 +1543,11 @@ select:focus {
 :is(body[data-view="evaluator"], body[data-view="best"]) .best-product-card {
   border-radius: 0;
 }
+
+
+.result-warning {
+  color: var(--amber);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.84rem;
+  font-weight: 700;
+}

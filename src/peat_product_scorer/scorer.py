@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .categories import detect_category
 from .knowledge_base import load_knowledge_base
-from .models import Product, ProductScore, ScoredSearchResult, ScoreComponent, ScoreReason
+from .models import Product, ProductScore, ScoredSearchResult, ScoreComponent, ScoreReason, SearchResult
 from .nutrition import normalize_text
 from .supermarkets import fetch_product, search_products
 
@@ -384,6 +384,27 @@ def _build_comment(
     return f"{lead} I would be cautious with it: {negatives[0].detail}{caveat}"
 
 
+def _product_from_search_result(search_result: SearchResult, *, fetch_error: str) -> Product:
+    name = search_result.display_name
+    if not name or name.strip().lower() in {"none", "null", "undefined"}:
+        name = search_result.product_id or "Unnamed product"
+    return Product(
+        name=name,
+        source=search_result.source,
+        url=search_result.url,
+        brand=search_result.brand,
+        description=search_result.category,
+        ingredients=[],
+        nutrition_per_100g={},
+        missing_fields=["ingredients", "nutrition_per_100g"],
+        raw={
+            "search_result": search_result.model_dump(mode="json"),
+            "fetch_error": fetch_error,
+            "score_basis": "search_result_fallback",
+        },
+    )
+
+
 def search_and_score(
     query: str,
     max_results: int = 10,
@@ -402,7 +423,8 @@ def search_and_score(
             score = score_product(product)
             scored.append(ScoredSearchResult(search=sr, score=score))
         except Exception as e:
-            scored.append(ScoredSearchResult(search=sr, error=str(e)))
+            fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
+            scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=str(e)))
 
         if len(scored) >= max_results:
             break

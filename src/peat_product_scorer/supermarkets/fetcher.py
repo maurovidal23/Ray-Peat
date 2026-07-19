@@ -69,7 +69,8 @@ def search_products(
 
 
 def available_search_providers() -> list[str]:
-    return ["DIA", "Mercadona", *[source for source, _, _ in GENERIC_SEARCH_PROVIDERS]]
+    # These providers currently expose product links that can be searched and scored reliably.
+    return ["DIA", "Mercadona", "Alcampo", "Eroski"]
 
 
 def _normalize_provider_filter(providers: list[str] | None) -> set[str] | None:

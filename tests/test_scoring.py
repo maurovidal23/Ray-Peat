@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
 
-from peat_product_scorer.models import Product
-from peat_product_scorer.scorer import score_product
+from peat_product_scorer.models import Product, SearchResult
+from peat_product_scorer.scorer import score_product, search_and_score
 
 
 class ScoringTests(unittest.TestCase):
@@ -51,6 +52,29 @@ class ScoringTests(unittest.TestCase):
             },
         )
         self.assertTrue(all(0 <= component.score <= 100 for component in result.components))
+
+
+class ScoredSearchFallbackTests(unittest.TestCase):
+    def test_search_and_score_falls_back_when_fetch_fails(self):
+        search_result = SearchResult(
+            source="Carrefour Espana",
+            query="leche",
+            display_name="Leche entera prueba",
+            product_id="p1",
+            url="https://www.carrefour.es/supermercado/p/leche-entera/p1",
+        )
+
+        with (
+            patch("peat_product_scorer.scorer.search_products", return_value=[search_result]),
+            patch("peat_product_scorer.scorer.fetch_product", side_effect=RuntimeError("blocked")),
+        ):
+            results = search_and_score("leche", providers=["Carrefour Espana"])
+
+        self.assertEqual(len(results), 1)
+        self.assertIsNotNone(results[0].score)
+        self.assertEqual(results[0].error, "blocked")
+        self.assertIn("ingredients", results[0].score.product.missing_fields)
+        self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
 
 
 if __name__ == "__main__":
