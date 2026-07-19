@@ -1,13 +1,17 @@
 import unittest
+from unittest.mock import patch
 
+from peat_product_scorer.models import SearchResult
 from peat_product_scorer.supermarkets.adapters import supermarket_name_for_url
 from peat_product_scorer.supermarkets.fetcher import (
     _bonpreu_entity_from_state,
     _build_product,
     _consum_ingredient_text,
     _dia_product_id,
+    _interleave_search_results,
     _load_bonpreu_initial_state,
     _product_from_bonpreu_entity,
+    _search_generic_provider,
     _standardize_ingredient_text,
     _strip_html,
 )
@@ -102,6 +106,43 @@ class SupermarketStandardizationTests(unittest.TestCase):
     def test_standardize_ingredient_text_returns_none_for_empty_or_weak_value(self) -> None:
         self.assertIsNone(_standardize_ingredient_text(None, name="A", description=None))
         self.assertIsNone(_standardize_ingredient_text("A", name="A", description=None))
+
+    def test_generic_provider_search_extracts_product_links(self) -> None:
+        class FakeResponse:
+            text = """
+            <html><body>
+              <a href="/products/auchan-leche-entera/54178">
+                <img src="/img/leche.jpg" alt="Auchan leche entera">
+              </a>
+              <a href="/search?text=leche">Search page</a>
+            </body></html>
+            """
+
+            def raise_for_status(self) -> None:
+                return None
+
+        with patch("peat_product_scorer.supermarkets.fetcher.requests.get", return_value=FakeResponse()):
+            results = _search_generic_provider(
+                "Alcampo",
+                "https://www.compraonline.alcampo.es/search?text={query}",
+                "compraonline.alcampo.es",
+                "leche",
+                5,
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source, "Alcampo")
+        self.assertEqual(results[0].display_name, "Auchan leche entera")
+        self.assertEqual(results[0].thumbnail, "https://www.compraonline.alcampo.es/img/leche.jpg")
+
+    def test_search_results_are_interleaved_across_providers(self) -> None:
+        dia = SearchResult(source="DIA", query="leche", display_name="DIA leche", product_id="1", url="https://www.dia.es/p/1")
+        alcampo = SearchResult(source="Alcampo", query="leche", display_name="Alcampo leche", product_id="2", url="https://www.compraonline.alcampo.es/products/2")
+        consum = SearchResult(source="Consum", query="leche", display_name="Consum leche", product_id="3", url="https://tienda.consum.es/es/p/leche/3")
+
+        results = _interleave_search_results([[dia], [alcampo], [consum]], max_results=3)
+
+        self.assertEqual([result.source for result in results], ["DIA", "Alcampo", "Consum"])
 
 
 if __name__ == "__main__":

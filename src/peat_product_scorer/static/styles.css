@@ -988,7 +988,7 @@ select:focus {
 }
 
 /* Evaluator page aligned with the generated article archive */
-body[data-view="evaluator"] {
+:is(body[data-view="evaluator"], body[data-view="best"]) {
   --page: #f6f1e7;
   --panel: #faf6ec;
   --ink: #1d1a16;
@@ -1009,16 +1009,16 @@ body[data-view="evaluator"] {
   text-rendering: optimizeLegibility;
 }
 
-body[data-view="evaluator"] .shell {
+:is(body[data-view="evaluator"], body[data-view="best"]) .shell {
   padding: 0;
 }
 
-body[data-view="evaluator"] .workspace {
+:is(body[data-view="evaluator"], body[data-view="best"]) .workspace {
   max-width: 1280px;
   padding: 0 28px 64px;
 }
 
-body[data-view="evaluator"] .topbar {
+:is(body[data-view="evaluator"], body[data-view="best"]) .topbar {
   display: block;
   position: sticky;
   top: 0;
@@ -1029,7 +1029,7 @@ body[data-view="evaluator"] .topbar {
   backdrop-filter: saturate(140%) blur(8px);
 }
 
-body[data-view="evaluator"] .topbar-inner {
+:is(body[data-view="evaluator"], body[data-view="best"]) .topbar-inner {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -1039,7 +1039,7 @@ body[data-view="evaluator"] .topbar-inner {
   padding: 14px 28px;
 }
 
-body[data-view="evaluator"] .brand {
+:is(body[data-view="evaluator"], body[data-view="best"]) .brand {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -1047,18 +1047,18 @@ body[data-view="evaluator"] .brand {
   text-decoration: none;
 }
 
-body[data-view="evaluator"] .brand-mark {
+:is(body[data-view="evaluator"], body[data-view="best"]) .brand-mark {
   font-family: "Fraunces", Georgia, serif;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.015em;
 }
 
-body[data-view="evaluator"] .brand-mark .dot {
+:is(body[data-view="evaluator"], body[data-view="best"]) .brand-mark .dot {
   color: var(--green);
 }
 
-body[data-view="evaluator"] .brand-tag {
+:is(body[data-view="evaluator"], body[data-view="best"]) .brand-tag {
   color: var(--muted);
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   font-size: 11px;
@@ -1066,11 +1066,11 @@ body[data-view="evaluator"] .brand-tag {
   text-transform: uppercase;
 }
 
-body[data-view="evaluator"] .topnav {
+:is(body[data-view="evaluator"], body[data-view="best"]) .topnav {
   justify-self: center;
 }
 
-body[data-view="evaluator"] .view-switcher {
+:is(body[data-view="evaluator"], body[data-view="best"]) .view-switcher {
   display: flex;
   gap: 24px;
   padding: 0;
@@ -1080,7 +1080,7 @@ body[data-view="evaluator"] .view-switcher {
   font-size: 13px;
 }
 
-body[data-view="evaluator"] .view-button {
+:is(body[data-view="evaluator"], body[data-view="best"]) .view-button {
   min-height: 0;
   border: 0;
   border-bottom: 1px solid transparent;
@@ -1094,21 +1094,21 @@ body[data-view="evaluator"] .view-button {
   text-decoration: none;
 }
 
-body[data-view="evaluator"] .view-button.active,
-body[data-view="evaluator"] .view-button:hover {
+:is(body[data-view="evaluator"], body[data-view="best"]) .view-button.active,
+:is(body[data-view="evaluator"], body[data-view="best"]) .view-button:hover {
   border-color: #e5b79f;
   background: transparent;
   box-shadow: none;
   color: var(--green);
 }
 
-body[data-view="evaluator"] .topbar-actions {
+:is(body[data-view="evaluator"], body[data-view="best"]) .topbar-actions {
   gap: 14px;
 }
 
-body[data-view="evaluator"] .status-pill,
-body[data-view="evaluator"] .band,
-body[data-view="evaluator"] .section-heading span {
+:is(body[data-view="evaluator"], body[data-view="best"]) .status-pill,
+:is(body[data-view="evaluator"], body[data-view="best"]) .band,
+:is(body[data-view="evaluator"], body[data-view="best"]) .section-heading span {
   border-color: var(--line);
   border-radius: 999px;
   background: var(--panel);
@@ -1120,18 +1120,18 @@ body[data-view="evaluator"] .section-heading span {
   text-transform: uppercase;
 }
 
-body[data-view="evaluator"] .status-pill.ok {
+:is(body[data-view="evaluator"], body[data-view="best"]) .status-pill.ok {
   border-color: #e5b79f;
   background: var(--panel);
   color: var(--green);
 }
 
-body[data-view="evaluator"] .evaluator-hero {
+:is(body[data-view="evaluator"], body[data-view="best"]) .evaluator-hero {
   padding: 72px 0 48px;
   border-bottom: 1px solid #e7decb;
 }
 
-body[data-view="evaluator"] .hero-eyebrow {
+:is(body[data-view="evaluator"], body[data-view="best"]) .hero-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1143,7 +1143,7 @@ body[data-view="evaluator"] .hero-eyebrow {
   text-transform: uppercase;
 }
 
-body[data-view="evaluator"] .hero-eyebrow::before {
+:is(body[data-view="evaluator"], body[data-view="best"]) .hero-eyebrow::before {
   content: "";
   display: inline-block;
   width: 36px;
@@ -1151,156 +1151,156 @@ body[data-view="evaluator"] .hero-eyebrow::before {
   background: var(--green);
 }
 
-body[data-view="evaluator"] .evaluator-hero h1,
-body[data-view="evaluator"] .score-copy h2,
-body[data-view="evaluator"] .empty-state h2,
-body[data-view="evaluator"] .section-heading h2,
-body[data-view="evaluator"] .section-heading h3 {
+:is(body[data-view="evaluator"], body[data-view="best"]) .evaluator-hero h1,
+:is(body[data-view="evaluator"], body[data-view="best"]) .score-copy h2,
+:is(body[data-view="evaluator"], body[data-view="best"]) .empty-state h2,
+:is(body[data-view="evaluator"], body[data-view="best"]) .section-heading h2,
+:is(body[data-view="evaluator"], body[data-view="best"]) .section-heading h3 {
   font-family: "Fraunces", Georgia, serif;
   font-weight: 500;
   letter-spacing: -0.015em;
 }
 
-body[data-view="evaluator"] .evaluator-hero h1 {
+:is(body[data-view="evaluator"], body[data-view="best"]) .evaluator-hero h1 {
   color: var(--ink);
   font-size: clamp(44px, 7.2vw, 104px);
   line-height: 0.96;
   max-width: 780px;
 }
 
-body[data-view="evaluator"] .main-grid {
+:is(body[data-view="evaluator"], body[data-view="best"]) .main-grid {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: 28px;
   padding-top: 48px;
 }
 
-body[data-view="evaluator"] .control-panel,
-body[data-view="evaluator"] .result-panel {
+:is(body[data-view="evaluator"], body[data-view="best"]) .control-panel,
+:is(body[data-view="evaluator"], body[data-view="best"]) .result-panel {
   border-color: var(--line);
   border-radius: 0;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
 
-body[data-view="evaluator"] .control-panel {
+:is(body[data-view="evaluator"], body[data-view="best"]) .control-panel {
   padding: 24px;
   top: 88px;
 }
 
-body[data-view="evaluator"] .result-panel {
+:is(body[data-view="evaluator"], body[data-view="best"]) .result-panel {
   padding: 28px;
 }
 
-body[data-view="evaluator"] .field-group span,
-body[data-view="evaluator"] .section-heading,
-body[data-view="evaluator"] .segment,
-body[data-view="evaluator"] .primary-button,
-body[data-view="evaluator"] .example-button,
-body[data-view="evaluator"] .meta-grid,
-body[data-view="evaluator"] .reason-row,
-body[data-view="evaluator"] .nutrition-chip {
+:is(body[data-view="evaluator"], body[data-view="best"]) .field-group span,
+:is(body[data-view="evaluator"], body[data-view="best"]) .section-heading,
+:is(body[data-view="evaluator"], body[data-view="best"]) .segment,
+:is(body[data-view="evaluator"], body[data-view="best"]) .primary-button,
+:is(body[data-view="evaluator"], body[data-view="best"]) .example-button,
+:is(body[data-view="evaluator"], body[data-view="best"]) .meta-grid,
+:is(body[data-view="evaluator"], body[data-view="best"]) .reason-row,
+:is(body[data-view="evaluator"], body[data-view="best"]) .nutrition-chip {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
 
-body[data-view="evaluator"] input,
-body[data-view="evaluator"] textarea,
-body[data-view="evaluator"] select {
+:is(body[data-view="evaluator"], body[data-view="best"]) input,
+:is(body[data-view="evaluator"], body[data-view="best"]) textarea,
+:is(body[data-view="evaluator"], body[data-view="best"]) select {
   border-color: var(--line);
   border-radius: 0;
   background: #fffaf0;
   color: var(--ink);
 }
 
-body[data-view="evaluator"] input:focus,
-body[data-view="evaluator"] textarea:focus,
-body[data-view="evaluator"] select:focus {
+:is(body[data-view="evaluator"], body[data-view="best"]) input:focus,
+:is(body[data-view="evaluator"], body[data-view="best"]) textarea:focus,
+:is(body[data-view="evaluator"], body[data-view="best"]) select:focus {
   border-color: #e5b79f;
   box-shadow: 0 0 0 3px rgba(168, 67, 23, 0.08);
   background: #fff;
 }
 
-body[data-view="evaluator"] .segmented {
+:is(body[data-view="evaluator"], body[data-view="best"]) .segmented {
   border-radius: 999px;
   background: #ede5d2;
 }
 
-body[data-view="evaluator"] .segment {
+:is(body[data-view="evaluator"], body[data-view="best"]) .segment {
   border-radius: 999px;
   font-weight: 600;
 }
 
-body[data-view="evaluator"] .segment.active,
-body[data-view="evaluator"] .primary-button {
+:is(body[data-view="evaluator"], body[data-view="best"]) .segment.active,
+:is(body[data-view="evaluator"], body[data-view="best"]) .primary-button {
   background: var(--ink);
   color: var(--page);
 }
 
-body[data-view="evaluator"] .primary-button {
+:is(body[data-view="evaluator"], body[data-view="best"]) .primary-button {
   border-radius: 999px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-body[data-view="evaluator"] .example-button,
-body[data-view="evaluator"] .reason-row,
-body[data-view="evaluator"] .nutrition-chip,
-body[data-view="evaluator"] .meta-grid > div {
+:is(body[data-view="evaluator"], body[data-view="best"]) .example-button,
+:is(body[data-view="evaluator"], body[data-view="best"]) .reason-row,
+:is(body[data-view="evaluator"], body[data-view="best"]) .nutrition-chip,
+:is(body[data-view="evaluator"], body[data-view="best"]) .meta-grid > div {
   border-color: var(--line);
   border-radius: 0;
   background: #fffaf0;
 }
 
-body[data-view="evaluator"] .example-button:hover {
+:is(body[data-view="evaluator"], body[data-view="best"]) .example-button:hover {
   border-color: #e5b79f;
   background: #fff;
 }
 
-body[data-view="evaluator"] .score-gauge {
+:is(body[data-view="evaluator"], body[data-view="best"]) .score-gauge {
   background: conic-gradient(var(--score-color, var(--green)) calc(var(--score) * 1%), #e7decb 0);
 }
 
-body[data-view="evaluator"] .score-gauge::after {
+:is(body[data-view="evaluator"], body[data-view="best"]) .score-gauge::after {
   background: var(--panel);
 }
 
-body[data-view="evaluator"] .score-copy p,
-body[data-view="evaluator"] .ingredients-section p {
+:is(body[data-view="evaluator"], body[data-view="best"]) .score-copy p,
+:is(body[data-view="evaluator"], body[data-view="best"]) .ingredients-section p {
   color: var(--steel);
 }
 
-body[data-view="evaluator"] .ingredients-section a {
+:is(body[data-view="evaluator"], body[data-view="best"]) .ingredients-section a {
   color: #7a2e0d;
 }
 
 @media (max-width: 920px) {
-  body[data-view="evaluator"] .workspace {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .workspace {
     padding: 0 20px 40px;
   }
 
-  body[data-view="evaluator"] .topbar-inner {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .topbar-inner {
     grid-template-columns: auto auto;
     gap: 14px;
     padding: 14px 16px;
   }
 
-  body[data-view="evaluator"] .topnav {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .topnav {
     justify-self: end;
   }
 
-  body[data-view="evaluator"] .topbar-actions {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .topbar-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
   }
 
-  body[data-view="evaluator"] .brand-tag {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .brand-tag {
     display: none;
   }
 
-  body[data-view="evaluator"] .evaluator-hero {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .evaluator-hero {
     padding: 48px 0 32px;
   }
 
-  body[data-view="evaluator"] .main-grid {
+  :is(body[data-view="evaluator"], body[data-view="best"]) .main-grid {
     gap: 18px;
     padding-top: 32px;
   }
@@ -1472,9 +1472,9 @@ body[data-view="evaluator"] .ingredients-section a {
   font-size: 0.9rem;
 }
 
-body[data-view="evaluator"] .best-search-panel,
-body[data-view="evaluator"] .best-product-card,
-body[data-view="evaluator"] .component-row {
+:is(body[data-view="evaluator"], body[data-view="best"]) .best-search-panel,
+:is(body[data-view="evaluator"], body[data-view="best"]) .best-product-card,
+:is(body[data-view="evaluator"], body[data-view="best"]) .component-row {
   border-radius: 0;
   background: var(--panel);
 }
@@ -1493,4 +1493,53 @@ body[data-view="evaluator"] .component-row {
   .source-button {
     justify-self: start;
   }
+}
+
+
+.preset-panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.preset-searches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.preset-search {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  background: #fffaf0;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.preset-search:hover {
+  border-color: #e5b79f;
+  background: #fff;
+}
+
+.preset-search strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.preset-search span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+:is(body[data-view="evaluator"], body[data-view="best"]) .preset-panel,
+:is(body[data-view="evaluator"], body[data-view="best"]) .best-search-panel,
+:is(body[data-view="evaluator"], body[data-view="best"]) .best-product-card {
+  border-radius: 0;
 }

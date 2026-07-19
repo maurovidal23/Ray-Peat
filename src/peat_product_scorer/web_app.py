@@ -48,6 +48,11 @@ def evaluator_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/products", include_in_schema=False)
+def products_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
 @app.get("/articles", include_in_schema=False)
 def articles_page() -> FileResponse:
     return FileResponse(EN_LIBRARY_PAGE)

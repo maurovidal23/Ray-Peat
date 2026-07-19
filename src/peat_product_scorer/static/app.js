@@ -1,3 +1,14 @@
+const predefinedSearches = [
+  { label: "Milk", query: "leche" },
+  { label: "Yoghurt", query: "yogur" },
+  { label: "Cheese", query: "queso" },
+  { label: "Juice", query: "zumo" },
+  { label: "Gelatin", query: "gelatina" },
+  { label: "Butter", query: "mantequilla" },
+  { label: "Olive oil", query: "aceite oliva" },
+  { label: "Chocolate", query: "chocolate" },
+];
+
 const examples = [
   {
     name: "Mercadona sunflower oil",
@@ -28,6 +39,7 @@ const examples = [
 
 const els = {
   serviceStatus: document.querySelector("#serviceStatus"),
+  viewEyebrow: document.querySelector("#viewEyebrow"),
   libraryViewButton: document.querySelector("#libraryViewButton"),
   evaluatorViewButton: document.querySelector("#evaluatorViewButton"),
   bestProductsViewButton: document.querySelector("#bestProductsViewButton"),
@@ -54,6 +66,7 @@ const els = {
   productJson: document.querySelector("#productJson"),
   emptyState: document.querySelector("#emptyState"),
   resultView: document.querySelector("#resultView"),
+  evaluatorTitle: document.querySelector("#evaluatorTitle"),
   scoreGauge: document.querySelector("#scoreGauge"),
   scoreValue: document.querySelector("#scoreValue"),
   scoreBand: document.querySelector("#scoreBand"),
@@ -73,6 +86,7 @@ const els = {
   nutritionList: document.querySelector("#nutritionList"),
   ingredientsText: document.querySelector("#ingredientsText"),
   sourceLink: document.querySelector("#sourceLink"),
+  presetSearches: document.querySelector("#presetSearches"),
   bestProductsForm: document.querySelector("#bestProductsForm"),
   bestProductsQuery: document.querySelector("#bestProductsQuery"),
   bestProductsLimit: document.querySelector("#bestProductsLimit"),
@@ -82,10 +96,17 @@ const els = {
 };
 
 let mode = "url";
-let currentView = window.location.pathname.startsWith("/evaluator") ? "evaluator" : "library";
+let currentView = initialView();
 let articles = [];
 let selectedArticleId = articleIdFromLocation();
 let selectedLanguage = new URLSearchParams(window.location.search).get("lang") || null;
+
+function initialView() {
+  const params = new URLSearchParams(window.location.search);
+  if (window.location.pathname.startsWith("/products") || params.get("view") === "best") return "best";
+  if (window.location.pathname.startsWith("/evaluator")) return "evaluator";
+  return "library";
+}
 
 function articleIdFromLocation() {
   const match = window.location.pathname.match(/^\/articles\/([^/]+)$/);
@@ -101,6 +122,24 @@ function setView(nextView) {
   els.libraryViewButton.classList.toggle("active", currentView === "library");
   els.evaluatorViewButton.classList.toggle("active", currentView === "evaluator");
   els.bestProductsViewButton.classList.toggle("active", currentView === "best");
+  updateHeroForView(currentView);
+}
+
+function updateHeroForView(view) {
+  if (view === "best") {
+    els.viewEyebrow.textContent = "Product browser";
+    els.evaluatorTitle.textContent = "Best products.";
+    document.title = "Best Products / Ray Peat Product Evaluator";
+    return;
+  }
+  if (view === "evaluator") {
+    els.viewEyebrow.textContent = "Product scoring";
+    els.evaluatorTitle.textContent = "Product evaluator.";
+    document.title = "Ray Peat Product Evaluator";
+    return;
+  }
+  els.viewEyebrow.textContent = "Article archive";
+  els.evaluatorTitle.textContent = "Ray Peat papers.";
 }
 
 function articleUrl(articleId, language = selectedLanguage) {
@@ -135,6 +174,21 @@ function setMessage(text, isError = false) {
 function setLoading(isLoading) {
   els.scoreButton.disabled = isLoading;
   els.scoreButton.textContent = isLoading ? "Scoring..." : "Score product";
+}
+
+function renderPresetSearches() {
+  els.presetSearches.innerHTML = "";
+  predefinedSearches.forEach((preset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "preset-search";
+    button.innerHTML = `<strong>${preset.label}</strong><span>${preset.query}</span>`;
+    button.addEventListener("click", () => {
+      els.bestProductsQuery.value = preset.query;
+      submitBestProducts(new Event("submit"));
+    });
+    els.presetSearches.appendChild(button);
+  });
 }
 
 function renderExamples() {
@@ -477,7 +531,7 @@ function renderResult(result) {
   els.scoreValue.textContent = result.score;
   els.scoreBand.textContent = result.band;
   els.scoreBand.className = `band ${bandClass(result.band)}`;
-  els.productName.textContent = product.name;
+  els.productName.textContent = displayProductName(product, null);
   els.scoreComment.textContent = result.comment;
   els.productSource.textContent = product.source || "-";
   els.productBrand.textContent = product.brand || "-";
@@ -615,11 +669,11 @@ function setBestProductsMessage(text, isError = false) {
 
 async function submitBestProducts(event) {
   event.preventDefault();
-  const query = els.bestProductsQuery.value.trim();
+  let query = els.bestProductsQuery.value.trim();
   const maxResults = Number(els.bestProductsLimit.value) || 10;
   if (!query) {
-    setBestProductsMessage("Add a product search first.", true);
-    return;
+    query = predefinedSearches[0].query;
+    els.bestProductsQuery.value = query;
   }
 
   setView("best");
@@ -654,7 +708,8 @@ function renderBestProducts(results) {
 
   scoredResults.forEach((item, index) => {
     const score = item.score;
-    const product = score.product;
+    const product = score.product || {};
+    const productName = displayProductName(product, item.search);
     const card = document.createElement("article");
     card.className = "best-product-card";
     card.innerHTML = `
@@ -668,14 +723,24 @@ function renderBestProducts(results) {
           <span>${score.category?.label || "Unknown"}</span>
           <span>${score.confidence}/100 confidence</span>
         </div>
-        <h2>${product.name || item.search.display_name}</h2>
+        <h2>${productName}</h2>
         <p>${score.comment}</p>
         <div class="component-strip">${componentChips(score.components || [])}</div>
       </div>
-      <a href="${product.url || item.search.url}" target="_blank" rel="noreferrer" class="source-button">Open</a>
+      <a href="${product.url || item.search.url || '#'}" target="_blank" rel="noreferrer" class="source-button">Open</a>
     `;
     els.bestProductsList.appendChild(card);
   });
+}
+
+function displayProductName(product, search) {
+  const candidates = [product?.name, search?.display_name, search?.product_id];
+  const value = candidates.find((candidate) => {
+    if (candidate === null || candidate === undefined) return false;
+    const normalized = String(candidate).trim().toLowerCase();
+    return normalized && normalized !== "none" && normalized !== "null" && normalized !== "undefined";
+  });
+  return value ? String(value).trim() : "Unnamed product";
 }
 
 function componentChips(components) {
@@ -703,6 +768,7 @@ window.addEventListener("popstate", () => {
 });
 
 setView(currentView);
+renderPresetSearches();
 renderExamples();
 loadConnectors();
 loadArticles();

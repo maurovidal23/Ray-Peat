@@ -26,32 +26,35 @@ HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "es-ES,es;q=0.9"}
 DIA_BASE = "https://www.dia.es"
 MERCADONA_BASE = "https://tienda.mercadona.es"
 
+GENERIC_SEARCH_PROVIDERS = (
+    ("Alcampo", "https://www.compraonline.alcampo.es/search?text={query}", "compraonline.alcampo.es"),
+    ("Consum", "https://tienda.consum.es/es/search?text={query}", "tienda.consum.es"),
+    ("Eroski", "https://supermercado.eroski.es/es/search/results/?q={query}", "supermercado.eroski.es"),
+    ("Bon Preu / Esclat", "https://www.compraonline.bonpreuesclat.cat/search?q={query}", "bonpreuesclat.cat"),
+    ("Carrefour Espana", "https://www.carrefour.es/supermercado/?q={query}", "carrefour.es"),
+    ("El Corte Ingles", "https://www.elcorteingles.es/supermercado/search/?s={query}", "elcorteingles.es"),
+    ("Aldi ES", "https://www.aldi.es/search.html?search={query}", "aldi.es"),
+    ("Spar ES", "https://spar.es/?s={query}", "spar.es"),
+    ("Hipercor", "https://www.hipercor.es/supermercado/search/?s={query}", "hipercor.es"),
+    ("Gadis Online", "https://www.gadisonline.com/buscar?search_query={query}", "gadisonline.com"),
+    ("Coviran", "https://www.coviransupermercados.com/search?search={query}", "coviransupermercados.com"),
+    ("Caprabo", "https://www.caprabo.com/es/search/?text={query}", "caprabo.com"),
+    ("Condis", "https://www.condis.es/search?q={query}", "condis.es"),
+    ("Froiz", "https://www.froiz.com/search?text={query}", "froiz.es"),
+)
+
 
 def search_products(query: str, max_results: int = 10) -> list[SearchResult]:
-    seen_urls: set[str] = set()
-    per_source = max(max_results * 2, 10)
-    dia_results = _search_dia(query, per_source)
-    merca_results = _search_mercadona_categories(query, per_source)
-
-    results: list[SearchResult] = []
-    max_len = max(len(dia_results), len(merca_results))
-    for i in range(max_len):
-        if len(results) >= max_results:
-            break
-        if i < len(dia_results):
-            r = dia_results[i]
-            if r.url not in seen_urls:
-                seen_urls.add(r.url)
-                results.append(r)
-        if len(results) >= max_results:
-            break
-        if i < len(merca_results):
-            r = merca_results[i]
-            if r.url not in seen_urls:
-                seen_urls.add(r.url)
-                results.append(r)
-
-    return results[:max_results]
+    per_source = max(4, min(max_results, 8))
+    provider_results = [
+        _search_dia(query, per_source),
+        _search_mercadona_categories(query, per_source),
+    ]
+    provider_results.extend(
+        _search_generic_provider(source, template, domain, query, per_source)
+        for source, template, domain in GENERIC_SEARCH_PROVIDERS
+    )
+    return _interleave_search_results(provider_results, max_results=max_results)
 
 
 def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]:
@@ -60,6 +63,169 @@ def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]
 
 def search_mercadona_products(query: str, max_results: int = 10) -> list[SearchResult]:
     return list(_search_mercadona_categories(query, max_results))
+
+
+def _interleave_search_results(
+    provider_results: list[list[SearchResult]],
+    *,
+    max_results: int,
+) -> list[SearchResult]:
+    results: list[SearchResult] = []
+    seen_urls: set[str] = set()
+    max_len = max((len(items) for items in provider_results), default=0)
+    for index in range(max_len):
+        for items in provider_results:
+            if len(results) >= max_results:
+                return results
+            if index >= len(items):
+                continue
+            item = items[index]
+            if not item.url or item.url in seen_urls:
+                continue
+            seen_urls.add(item.url)
+            results.append(item)
+    return results
+
+
+def _search_generic_provider(
+    source: str,
+    search_template: str,
+    domain: str,
+    query: str,
+    max_results: int,
+) -> list[SearchResult]:
+    search_url = search_template.format(query=requests.utils.quote(query))
+    try:
+        response = requests.get(search_url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    query_terms = _search_terms(query)
+    results: list[SearchResult] = []
+    seen_urls: set[str] = set()
+
+    for anchor in soup.select("a[href]"):
+        if len(results) >= max_results:
+            break
+        href = anchor.get("href") or ""
+        url = urljoin(search_url, href)
+        parsed = urlparse(url)
+        if domain not in parsed.netloc.lower():
+            continue
+        if not _is_productish_url(url, source=source):
+            continue
+        display_name = _anchor_product_name(anchor) or _name_from_url(url)
+        if not _matches_query(display_name, query_terms) and not _matches_query(url, query_terms):
+            continue
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        results.append(
+            SearchResult(
+                source=source,
+                query=query,
+                display_name=display_name or "Unnamed product",
+                product_id=_product_id_from_url(url),
+                url=url,
+                brand=None,
+                price=None,
+                price_currency="EUR",
+                thumbnail=_anchor_image(anchor, search_url),
+                category=None,
+            )
+        )
+    return results
+
+
+def _search_terms(query: str) -> list[str]:
+    return [term for term in re.split(r"\s+", query.lower().strip()) if len(term) >= 2]
+
+
+def _matches_query(value: str, query_terms: list[str]) -> bool:
+    normalized = value.lower()
+    return not query_terms or any(term in normalized for term in query_terms)
+
+
+def _is_productish_url(url: str, *, source: str) -> bool:
+    path = urlparse(url).path.lower()
+    negative_markers = ("/search", "/buscar", "/category", "/categoria", "/catalog", "/login", "/cart")
+    if any(marker in path for marker in negative_markers):
+        return False
+
+    source_markers = {
+        "Alcampo": ("/products/",),
+        "Consum": ("/p/",),
+        "Eroski": ("/productdetail/",),
+        "Bon Preu / Esclat": ("/product/", "/products/", "/p/"),
+        "Carrefour Espana": ("/p/", "/product/", "/producto/"),
+        "El Corte Ingles": ("/supermercado/", "/p/", "/producto/"),
+        "Aldi ES": ("/producto", "/products/"),
+        "Spar ES": ("/producto", "/product"),
+        "Hipercor": ("/supermercado/", "/p/", "/producto/"),
+        "Gadis Online": ("/producto", "/product"),
+        "Coviran": ("/producto", "/product"),
+        "Caprabo": ("/producto", "/product"),
+        "Condis": ("/producto", "/product"),
+        "Froiz": ("/producto", "/product"),
+    }
+    markers = source_markers.get(source) or ("/product", "/products", "/producto", "/productdetail", "/p/")
+    return any(marker in path for marker in markers)
+
+
+def _anchor_product_name(anchor: Any) -> str:
+    labels = [
+        anchor.get("aria-label"),
+        anchor.get("title"),
+        anchor.get_text(" ", strip=True),
+    ]
+    img = anchor.find("img")
+    if img:
+        labels.extend([img.get("alt"), img.get("title")])
+    for label in labels:
+        if not label:
+            continue
+        cleaned = re.sub(r"\s+", " ", str(label)).strip()
+        normalized = cleaned.lower()
+        weak_labels = {
+            "none",
+            "null",
+            "undefined",
+            "mostrar todas las opiniones",
+            "ver producto",
+            "comprar",
+            "anadir",
+            "a?adir",
+            "mas informacion",
+            "m?s informaci?n",
+        }
+        if cleaned and normalized not in weak_labels:
+            return cleaned
+    return ""
+
+
+def _anchor_image(anchor: Any, base_url: str) -> str | None:
+    img = anchor.find("img")
+    if not img:
+        return None
+    value = img.get("src") or img.get("data-src") or img.get("data-original")
+    return urljoin(base_url, value) if value else None
+
+
+def _name_from_url(url: str) -> str:
+    slug = urlparse(url).path.rstrip("/").split("/")[-1]
+    slug = re.sub(r"\.html?$", "", slug, flags=re.IGNORECASE)
+    slug = re.sub(r"[-_]+", " ", slug)
+    return slug.strip().title()
+
+
+def _product_id_from_url(url: str) -> str:
+    path = urlparse(url).path.rstrip("/")
+    match = re.search(r"(?:/p/|/productdetail/|/products?/)([^/?#]+)", path, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return path.split("/")[-1] or url
 
 
 def _search_dia(query: str, max_results: int) -> list[SearchResult]:

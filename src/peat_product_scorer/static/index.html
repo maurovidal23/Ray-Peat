@@ -39,7 +39,7 @@
     <main class="shell">
       <section class="workspace">
         <section class="evaluator-hero" aria-labelledby="evaluatorTitle">
-          <div class="hero-eyebrow">Product scoring</div>
+          <div id="viewEyebrow" class="hero-eyebrow">Product scoring</div>
           <h1 id="evaluatorTitle">Product evaluator.</h1>
         </section>
 
@@ -87,6 +87,11 @@
         </section>
 
         <section id="bestProductsView" class="best-products-view hidden" aria-label="Best scored products">
+          <section class="preset-panel" aria-label="Predefined product searches">
+            <div class="section-heading"><h2>Predefined searches</h2><span>Fast browser</span></div>
+            <div id="presetSearches" class="preset-searches"></div>
+          </section>
+
           <form id="bestProductsForm" class="best-search-panel">
             <label class="field-group">
               <span>Product search</span>
