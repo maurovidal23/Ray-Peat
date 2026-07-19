@@ -30,8 +30,10 @@ const els = {
   serviceStatus: document.querySelector("#serviceStatus"),
   libraryViewButton: document.querySelector("#libraryViewButton"),
   evaluatorViewButton: document.querySelector("#evaluatorViewButton"),
+  bestProductsViewButton: document.querySelector("#bestProductsViewButton"),
   libraryView: document.querySelector("#libraryView"),
   evaluatorView: document.querySelector("#evaluatorView"),
+  bestProductsView: document.querySelector("#bestProductsView"),
   articleSearch: document.querySelector("#articleSearch"),
   articleLanguage: document.querySelector("#articleLanguage"),
   articleCount: document.querySelector("#articleCount"),
@@ -60,12 +62,23 @@ const els = {
   productSource: document.querySelector("#productSource"),
   productBrand: document.querySelector("#productBrand"),
   scrapedAt: document.querySelector("#scrapedAt"),
+  productCategory: document.querySelector("#productCategory"),
+  scoreConfidence: document.querySelector("#scoreConfidence"),
+  componentCount: document.querySelector("#componentCount"),
+  componentList: document.querySelector("#componentList"),
+  warningList: document.querySelector("#warningList"),
   reasonCount: document.querySelector("#reasonCount"),
   reasonsList: document.querySelector("#reasonsList"),
   nutritionCount: document.querySelector("#nutritionCount"),
   nutritionList: document.querySelector("#nutritionList"),
   ingredientsText: document.querySelector("#ingredientsText"),
   sourceLink: document.querySelector("#sourceLink"),
+  bestProductsForm: document.querySelector("#bestProductsForm"),
+  bestProductsQuery: document.querySelector("#bestProductsQuery"),
+  bestProductsLimit: document.querySelector("#bestProductsLimit"),
+  bestProductsButton: document.querySelector("#bestProductsButton"),
+  bestProductsMessage: document.querySelector("#bestProductsMessage"),
+  bestProductsList: document.querySelector("#bestProductsList"),
 };
 
 let mode = "url";
@@ -84,8 +97,10 @@ function setView(nextView) {
   document.body.dataset.view = nextView;
   els.libraryView.classList.toggle("hidden", currentView !== "library");
   els.evaluatorView.classList.toggle("hidden", currentView !== "evaluator");
+  els.bestProductsView.classList.toggle("hidden", currentView !== "best");
   els.libraryViewButton.classList.toggle("active", currentView === "library");
   els.evaluatorViewButton.classList.toggle("active", currentView === "evaluator");
+  els.bestProductsViewButton.classList.toggle("active", currentView === "best");
 }
 
 function articleUrl(articleId, language = selectedLanguage) {
@@ -467,7 +482,10 @@ function renderResult(result) {
   els.productSource.textContent = product.source || "-";
   els.productBrand.textContent = product.brand || "-";
   els.scrapedAt.textContent = formatDate(product.scraped_at);
+  els.productCategory.textContent = result.category?.label || "-";
+  els.scoreConfidence.textContent = result.confidence === undefined ? "-" : `${result.confidence}/100`;
 
+  renderComponents(result.components || [], result.warnings || []);
   renderReasons(result.reasons || []);
   renderNutrition(product.nutrition_per_100g || {});
   renderIngredients(product);
@@ -479,6 +497,28 @@ function bandClass(band) {
   if (band.includes("weak")) return "weak";
   if (band.includes("avoid")) return "avoid";
   return "mixed";
+}
+
+function renderComponents(components, warnings) {
+  els.componentCount.textContent = `${components.length} components`;
+  els.componentList.innerHTML = "";
+  components.forEach((component) => {
+    const row = document.createElement("div");
+    row.className = "component-row";
+    row.innerHTML = `
+      <div><strong>${component.label}</strong><span>${Math.round(component.weight * 100)}% weight</span></div>
+      <meter min="0" max="100" value="${component.score}"></meter>
+      <b>${component.score}</b>
+    `;
+    els.componentList.appendChild(row);
+  });
+
+  els.warningList.innerHTML = "";
+  warnings.forEach((warning) => {
+    const row = document.createElement("p");
+    row.textContent = warning;
+    els.warningList.appendChild(row);
+  });
 }
 
 function renderReasons(reasons) {
@@ -563,15 +603,98 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+function setBestProductsLoading(isLoading) {
+  els.bestProductsButton.disabled = isLoading;
+  els.bestProductsButton.textContent = isLoading ? "Searching..." : "Find best";
+}
+
+function setBestProductsMessage(text, isError = false) {
+  els.bestProductsMessage.textContent = text;
+  els.bestProductsMessage.classList.toggle("error", isError);
+}
+
+async function submitBestProducts(event) {
+  event.preventDefault();
+  const query = els.bestProductsQuery.value.trim();
+  const maxResults = Number(els.bestProductsLimit.value) || 10;
+  if (!query) {
+    setBestProductsMessage("Add a product search first.", true);
+    return;
+  }
+
+  setView("best");
+  setBestProductsLoading(true);
+  setBestProductsMessage("Searching and scoring products...");
+  els.bestProductsList.innerHTML = "";
+  try {
+    const response = await fetch("/api/search-score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, max_results: maxResults }),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.detail || "Products could not be searched.");
+    renderBestProducts(data.results || []);
+    setBestProductsMessage(`${data.total || 0} products scored for "${query}".`);
+  } catch (error) {
+    els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No ranked products</h2><p>${error.message}</p></div>`;
+    setBestProductsMessage(error.message, true);
+  } finally {
+    setBestProductsLoading(false);
+  }
+}
+
+function renderBestProducts(results) {
+  const scoredResults = results.filter((item) => item.score).sort((a, b) => b.score.score - a.score.score);
+  els.bestProductsList.innerHTML = "";
+  if (!scoredResults.length) {
+    els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No scored products</h2><p>Try a broader search term or another product category.</p></div>`;
+    return;
+  }
+
+  scoredResults.forEach((item, index) => {
+    const score = item.score;
+    const product = score.product;
+    const card = document.createElement("article");
+    card.className = "best-product-card";
+    card.innerHTML = `
+      <div class="rank-badge">#${index + 1}</div>
+      <div class="best-score" style="--score-color: ${scoreColor(score.score)}">
+        <strong>${score.score}</strong><span>${score.band}</span>
+      </div>
+      <div class="best-product-main">
+        <div class="best-product-meta">
+          <span>${product.source || item.search.source || "Source"}</span>
+          <span>${score.category?.label || "Unknown"}</span>
+          <span>${score.confidence}/100 confidence</span>
+        </div>
+        <h2>${product.name || item.search.display_name}</h2>
+        <p>${score.comment}</p>
+        <div class="component-strip">${componentChips(score.components || [])}</div>
+      </div>
+      <a href="${product.url || item.search.url}" target="_blank" rel="noreferrer" class="source-button">Open</a>
+    `;
+    els.bestProductsList.appendChild(card);
+  });
+}
+
+function componentChips(components) {
+  return components
+    .map((component) => `<span title="${component.label}">${component.label}: <strong>${component.score}</strong></span>`)
+    .join("");
+}
+
 els.libraryViewButton.addEventListener("click", () => {
   window.location.href = "/articles";
 });
 els.evaluatorViewButton.addEventListener("click", () => setView("evaluator"));
+els.bestProductsViewButton.addEventListener("click", () => setView("best"));
 els.articleSearch.addEventListener("input", renderArticles);
 els.articleLanguage.addEventListener("change", renderArticles);
 els.urlMode.addEventListener("click", () => setMode("url"));
 els.jsonMode.addEventListener("click", () => setMode("json"));
 els.scoreForm.addEventListener("submit", submitScore);
+els.bestProductsForm.addEventListener("submit", submitBestProducts);
 window.addEventListener("popstate", () => {
   selectedArticleId = articleIdFromLocation() || selectedArticleId;
   selectedLanguage = new URLSearchParams(window.location.search).get("lang") || selectedLanguage;

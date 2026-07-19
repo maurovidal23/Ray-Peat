@@ -4,12 +4,12 @@ import html
 import json
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
-from ..models import Product
+from ..models import Product, SearchResult
 from ..nutrition import normalize_nutrition, split_ingredients
 from .adapters import supermarket_name_for_url
 from .parser import parse_product_page
@@ -23,6 +23,145 @@ USER_AGENT = (
 
 
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "es-ES,es;q=0.9"}
+DIA_BASE = "https://www.dia.es"
+MERCADONA_BASE = "https://tienda.mercadona.es"
+
+
+def search_products(query: str, max_results: int = 10) -> list[SearchResult]:
+    seen_urls: set[str] = set()
+    per_source = max(max_results * 2, 10)
+    dia_results = _search_dia(query, per_source)
+    merca_results = _search_mercadona_categories(query, per_source)
+
+    results: list[SearchResult] = []
+    max_len = max(len(dia_results), len(merca_results))
+    for i in range(max_len):
+        if len(results) >= max_results:
+            break
+        if i < len(dia_results):
+            r = dia_results[i]
+            if r.url not in seen_urls:
+                seen_urls.add(r.url)
+                results.append(r)
+        if len(results) >= max_results:
+            break
+        if i < len(merca_results):
+            r = merca_results[i]
+            if r.url not in seen_urls:
+                seen_urls.add(r.url)
+                results.append(r)
+
+    return results[:max_results]
+
+
+def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]:
+    return list(_search_dia(query, max_results))
+
+
+def search_mercadona_products(query: str, max_results: int = 10) -> list[SearchResult]:
+    return list(_search_mercadona_categories(query, max_results))
+
+
+def _search_dia(query: str, max_results: int) -> list[SearchResult]:
+    search_url = f"{DIA_BASE}/search?q={requests.utils.quote(query)}"
+    try:
+        response = requests.get(search_url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        context = _load_script_json(soup, "vike_pageContext")
+        search_data = (((context or {}).get("INITIAL_STATE") or {}).get("header") or {}).get("searchData") or {}
+        items = search_data.get("search_items") or []
+    except Exception:
+        return []
+
+    results: list[SearchResult] = []
+    for item in items[:max_results]:
+        object_id = item.get("object_id") or ""
+        display_name = item.get("display_name") or ""
+        product_url = urljoin(DIA_BASE, item.get("url") or "")
+        prices = item.get("prices") or {}
+        results.append(
+            SearchResult(
+                source="DIA",
+                query=query,
+                display_name=display_name,
+                product_id=object_id,
+                url=product_url,
+                brand=item.get("brand"),
+                price=prices.get("price"),
+                price_currency=prices.get("currency"),
+                thumbnail=urljoin(DIA_BASE, item.get("image") or "") if item.get("image") else None,
+                category=item.get("l1_category_description"),
+            )
+        )
+    return results
+
+
+def _search_mercadona_categories(query: str, max_results: int) -> list[SearchResult]:
+    try:
+        cat_resp = requests.get(f"{MERCADONA_BASE}/api/categories/", headers=HEADERS, timeout=15)
+        cat_resp.raise_for_status()
+        categories = cat_resp.json().get("results") or []
+    except Exception:
+        return []
+
+    query_lower = query.lower()
+    results: list[SearchResult] = []
+    seen_ids: set[str] = set()
+
+    for section in categories:
+        for cat in section.get("categories") or []:
+            if len(results) >= max_results:
+                break
+            cat_id = cat.get("id")
+            cat_name = cat.get("name") or ""
+            if not _query_matches_category(query_lower, cat_name):
+                continue
+            try:
+                cat_resp = requests.get(f"{MERCADONA_BASE}/api/categories/{cat_id}/", headers=HEADERS, timeout=15)
+                cat_resp.raise_for_status()
+                cat_data = cat_resp.json()
+            except Exception:
+                continue
+            sub_categories = cat_data.get("categories") or [cat_data]
+            for sub in sub_categories:
+                if len(results) >= max_results:
+                    break
+                for product in sub.get("products") or []:
+                    if len(results) >= max_results:
+                        break
+                    pid = product.get("id")
+                    if pid in seen_ids:
+                        continue
+                    seen_ids.add(pid)
+                    display_name = product.get("display_name") or ""
+                    if query_lower not in display_name.lower():
+                        continue
+                    url = product.get("share_url") or ""
+                    pi = product.get("price_instructions") or {}
+                    results.append(
+                        SearchResult(
+                            source="Mercadona",
+                            query=query,
+                            display_name=display_name,
+                            product_id=str(pid),
+                            url=url,
+                            brand=cat_name,
+                            price=pi.get("bulk_price") or pi.get("unit_price"),
+                            price_currency="EUR",
+                            thumbnail=product.get("thumbnail"),
+                            category=section.get("name"),
+                        )
+                    )
+    return results
+
+
+def _query_matches_category(query_lower: str, cat_name: str) -> bool:
+    cat_lower = cat_name.lower()
+    for token in query_lower.split():
+        if token in cat_lower:
+            return True
+    return False
 
 
 def fetch_product(url: str, timeout: int = 20) -> Product:

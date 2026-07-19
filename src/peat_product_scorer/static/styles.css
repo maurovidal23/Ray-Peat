@@ -375,7 +375,7 @@ select:focus {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -559,7 +559,7 @@ select:focus {
 
 .view-switcher {
   display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
   background: #e8ebe5;
@@ -1303,5 +1303,194 @@ body[data-view="evaluator"] .ingredients-section a {
   body[data-view="evaluator"] .main-grid {
     gap: 18px;
     padding-top: 32px;
+  }
+}
+
+
+.best-products-view {
+  display: grid;
+  gap: 14px;
+  padding-top: 48px;
+}
+
+.best-search-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(110px, 150px) auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.best-products-list {
+  display: grid;
+  gap: 12px;
+}
+
+.best-product-card {
+  display: grid;
+  grid-template-columns: 54px 84px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.rank-badge {
+  color: var(--muted);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.best-score {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  min-height: 76px;
+  border: 2px solid var(--score-color, var(--green));
+  color: var(--score-color, var(--green));
+}
+
+.best-score strong {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.best-score span,
+.best-product-meta,
+.component-strip,
+.source-button,
+.component-row {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+.best-score span {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.best-product-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.best-product-main h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.best-product-main p {
+  color: var(--steel);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.best-product-meta,
+.component-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.best-product-meta span,
+.component-strip span {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 7px;
+  text-transform: uppercase;
+}
+
+.source-button {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.component-section {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.component-list {
+  display: grid;
+  gap: 8px;
+}
+
+.component-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 260px) 42px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: #fbfcfa;
+  padding: 9px 10px;
+}
+
+.component-row strong,
+.component-row span {
+  display: block;
+}
+
+.component-row span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.component-row meter {
+  width: 100%;
+}
+
+.component-row b {
+  text-align: right;
+}
+
+.warning-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.warning-list p {
+  color: var(--amber);
+  font-size: 0.9rem;
+}
+
+body[data-view="evaluator"] .best-search-panel,
+body[data-view="evaluator"] .best-product-card,
+body[data-view="evaluator"] .component-row {
+  border-radius: 0;
+  background: var(--panel);
+}
+
+@media (max-width: 920px) {
+  .best-search-panel,
+  .best-product-card,
+  .component-row {
+    grid-template-columns: 1fr;
+  }
+
+  .best-products-view {
+    padding-top: 32px;
+  }
+
+  .source-button {
+    justify-self: start;
   }
 }

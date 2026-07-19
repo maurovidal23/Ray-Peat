@@ -28,6 +28,7 @@
         <nav class="topnav view-switcher" aria-label="Primary view">
           <a id="libraryViewButton" class="view-button active" href="/articles">Papers</a>
           <button id="evaluatorViewButton" class="view-button" type="button">Evaluator</button>
+          <button id="bestProductsViewButton" class="view-button" type="button">Best products</button>
         </nav>
         <div class="topbar-actions">
           <div id="serviceStatus" class="status-pill">Checking service</div>
@@ -82,6 +83,31 @@
                 <p>Choose a paper to open its formatted article page.</p>
               </div>
             </article>
+          </div>
+        </section>
+
+        <section id="bestProductsView" class="best-products-view hidden" aria-label="Best scored products">
+          <form id="bestProductsForm" class="best-search-panel">
+            <label class="field-group">
+              <span>Product search</span>
+              <input id="bestProductsQuery" type="search" autocomplete="off" placeholder="Search milk, yoghurt, cheese, juice..." />
+            </label>
+            <label class="field-group compact-field">
+              <span>Results</span>
+              <select id="bestProductsLimit">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+              </select>
+            </label>
+            <button id="bestProductsButton" class="primary-button" type="submit">Find best</button>
+          </form>
+          <p id="bestProductsMessage" class="message" role="status"></p>
+          <div id="bestProductsList" class="best-products-list">
+            <div class="empty-state best-empty">
+              <h2>Find the strongest matches</h2>
+              <p>Search connected supermarkets and rank products by the improved scoring algorithm.</p>
+            </div>
           </div>
         </section>
 
@@ -145,7 +171,15 @@
                 <div><span>Source</span><strong id="productSource">-</strong></div>
                 <div><span>Brand</span><strong id="productBrand">-</strong></div>
                 <div><span>Scraped</span><strong id="scrapedAt">-</strong></div>
+                <div><span>Category</span><strong id="productCategory">-</strong></div>
+                <div><span>Confidence</span><strong id="scoreConfidence">-</strong></div>
               </div>
+
+              <section class="component-section">
+                <div class="section-heading"><h3>Algorithm components</h3><span id="componentCount">0 components</span></div>
+                <div id="componentList" class="component-list"></div>
+                <div id="warningList" class="warning-list"></div>
+              </section>
 
               <section class="details-grid">
                 <div class="details-section">

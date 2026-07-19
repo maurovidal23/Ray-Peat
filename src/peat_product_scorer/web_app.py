@@ -12,10 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .models import Product
+from .models import Product, SearchResult
 from .nutrition import normalize_nutrition, split_ingredients
-from .scorer import score_product
-from .supermarkets import fetch_product
+from .scorer import score_product, search_and_score
+from .supermarkets import fetch_product, search_products
 from .supermarkets.adapters import ADAPTERS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -96,6 +96,31 @@ def connectors() -> dict[str, Any]:
             }
             for adapter in ADAPTERS
         ]
+    }
+
+
+class SearchQuery(BaseModel):
+    q: str = Field(..., min_length=1, description="Search query")
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum results")
+
+
+@app.post("/api/search")
+def search_endpoint(query: SearchQuery) -> dict[str, Any]:
+    results = search_products(query.q, max_results=query.max_results)
+    return {
+        "query": query.q,
+        "total": len(results),
+        "results": [r.model_dump(mode="json") for r in results],
+    }
+
+
+@app.post("/api/search-score")
+def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
+    scored = search_and_score(query.q, max_results=query.max_results, max_per_source=query.max_results)
+    return {
+        "query": query.q,
+        "total": len(scored),
+        "results": [s.model_dump(mode="json", exclude_none=True) for s in scored],
     }
 
 
