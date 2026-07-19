@@ -730,7 +730,11 @@ async function submitBestProducts(event) {
     const results = await enrichDiaSearchScores(data.results || []);
     renderBestProducts(results);
     const providerLabel = provider === "all" ? "all providers" : provider;
-    setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
+    if (!(data.total || 0) && provider !== "all") {
+      setBestProductsMessage(`No real products returned for "${query}" in ${providerLabel}. The provider may be blocking server-side search or may not have matching products.`, true);
+    } else {
+      setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
+    }
   } catch (error) {
     els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No ranked products</h2><p>${error.message}</p></div>`;
     setBestProductsMessage(error.message, true);
