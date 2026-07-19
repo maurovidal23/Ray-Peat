@@ -88,6 +88,15 @@ class WebAppTests(unittest.TestCase):
         search_mock.assert_called_once_with("leche", max_results=5, providers=["Alcampo"])
         self.assertEqual(response.json()["provider"], "Alcampo")
 
+    def test_products_page_contains_static_provider_options(self) -> None:
+        response = self.client.get("/products")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("bestProductsProvider", response.text)
+        self.assertIn('option value="Mercadona"', response.text)
+        self.assertIn('option value="Alcampo"', response.text)
+        self.assertIn('option value="Eroski"', response.text)
+
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")
 

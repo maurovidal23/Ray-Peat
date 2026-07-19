@@ -675,7 +675,7 @@ async function loadSearchProviders() {
     const data = await response.json();
     renderSearchProviders(data.providers || []);
   } catch (error) {
-    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Consum", "Eroski"]);
+    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Consum", "Eroski", "Bon Preu / Esclat", "Carrefour Espana", "El Corte Ingles", "Aldi ES", "Spar ES", "Hipercor", "Gadis Online", "Coviran", "Caprabo", "Condis", "Froiz"]);
   }
 }
 
