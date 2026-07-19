@@ -181,6 +181,22 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertIn("608P6", dia_results[0].url)
         self.assertIn("54178", alcampo_results[0].url)
 
+    def test_search_products_uses_category_fallback_for_other_predefined_terms(self) -> None:
+        with (
+            patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_mercadona_categories", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_generic_provider", return_value=[]),
+        ):
+            dia_results = search_products("queso", max_results=3, providers=["DIA"])
+            alcampo_results = search_products("zumo", max_results=3, providers=["Alcampo"])
+
+        self.assertEqual([result.source for result in dia_results], ["DIA"])
+        self.assertEqual(dia_results[0].display_name, "Queso en DIA")
+        self.assertIn("/search?q=queso", dia_results[0].url)
+        self.assertEqual([result.source for result in alcampo_results], ["Alcampo"])
+        self.assertEqual(alcampo_results[0].display_name, "Zumo en Alcampo")
+        self.assertIn("search?text=zumo", alcampo_results[0].url)
+
     def test_search_products_normalizes_generic_browser_terms(self) -> None:
         with (
             patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),

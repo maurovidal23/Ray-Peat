@@ -418,17 +418,21 @@ def search_and_score(
     scored: list[ScoredSearchResult] = []
 
     for sr in search_results:
-        try:
-            product = fetch_product(sr.url)
-            score = score_product(product)
-            scored.append(ScoredSearchResult(search=sr, score=score))
-        except Exception as e:
-            fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
-            scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=str(e)))
+        if sr.product_id.startswith("search-"):
+            error = "Provider did not return product links; scored provider search fallback."
+            fallback_score = score_product(_product_from_search_result(sr, fetch_error=error))
+            scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=error))
+        else:
+            try:
+                product = fetch_product(sr.url)
+                score = score_product(product)
+                scored.append(ScoredSearchResult(search=sr, score=score))
+            except Exception as e:
+                fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
+                scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=str(e)))
 
         if len(scored) >= max_results:
             break
-
     if sort_by == "name":
         scored.sort(key=lambda x: x.search.display_name.lower())
     else:

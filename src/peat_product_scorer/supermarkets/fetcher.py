@@ -44,6 +44,25 @@ GENERIC_SEARCH_PROVIDERS = (
 )
 
 
+RELIABLE_SEARCH_PROVIDERS = ("DIA", "Mercadona", "Alcampo", "Eroski")
+
+FALLBACK_PROVIDER_SEARCH_URLS = {
+    "DIA": "https://www.dia.es/search?q={query}",
+    "Mercadona": "https://tienda.mercadona.es/search-results?query={query}",
+    "Alcampo": "https://www.compraonline.alcampo.es/search?text={query}",
+    "Eroski": "https://supermercado.eroski.es/es/search/results/?q={query}",
+}
+
+FALLBACK_SEARCH_CATEGORIES = (
+    {"label": "Leche", "terms": ("leche", "milk")},
+    {"label": "Queso", "terms": ("queso", "cheese")},
+    {"label": "Yogur", "terms": ("yogur", "yoghurt", "yogurt")},
+    {"label": "Zumo", "terms": ("zumo", "juice")},
+    {"label": "Mantequilla", "terms": ("mantequilla", "butter")},
+    {"label": "Aceite de oliva", "terms": ("aceite oliva", "aceite de oliva", "olive oil")},
+    {"label": "Chocolate", "terms": ("chocolate",)},
+)
+
 FALLBACK_SEARCH_PRODUCTS = (
     {
         "source": "DIA",
@@ -150,7 +169,55 @@ def _fallback_search_products(
         )
         if len(results) >= max_results:
             break
+
+    if len(results) < max_results:
+        results.extend(_provider_category_fallbacks(query, selected=selected, existing=results, max_results=max_results))
     return results
+
+def _provider_category_fallbacks(
+    query: str,
+    *,
+    selected: set[str] | None,
+    existing: list[SearchResult],
+    max_results: int,
+) -> list[SearchResult]:
+    category = _fallback_category_for_query(query)
+    if not category:
+        return []
+
+    results: list[SearchResult] = []
+    used_sources = {result.source for result in existing}
+    for source in RELIABLE_SEARCH_PROVIDERS:
+        if len(existing) + len(results) >= max_results:
+            break
+        if source in used_sources or not _provider_selected(source, selected):
+            continue
+        search_url = FALLBACK_PROVIDER_SEARCH_URLS[source].format(query=requests.utils.quote(query))
+        slug = re.sub(r"[^a-z0-9]+", "-", query.lower()).strip("-") or "search"
+        results.append(
+            SearchResult(
+                source=source,
+                query=query,
+                display_name=f"{category['label']} en {source}",
+                product_id=f"search-{source.lower().replace(' ', '-')}-{slug}",
+                url=search_url,
+                brand=source,
+                price=None,
+                price_currency="EUR",
+                thumbnail=None,
+                category=str(category["label"]),
+            )
+        )
+    return results
+
+
+def _fallback_category_for_query(query: str) -> dict[str, object] | None:
+    normalized = re.sub(r"\s+", " ", query.lower()).strip()
+    for category in FALLBACK_SEARCH_CATEGORIES:
+        terms = category["terms"]
+        if any(term in normalized for term in terms):
+            return category
+    return None
 
 def _normalize_search_query(query: str) -> str:
     cleaned = re.sub(r"\s+", " ", query).strip()
@@ -171,7 +238,7 @@ def _normalize_search_query(query: str) -> str:
 
 def available_search_providers() -> list[str]:
     # These providers currently expose product links that can be searched and scored reliably.
-    return ["DIA", "Mercadona", "Alcampo", "Eroski"]
+    return list(RELIABLE_SEARCH_PROVIDERS)
 
 
 def _normalize_provider_filter(providers: list[str] | None) -> set[str] | None:

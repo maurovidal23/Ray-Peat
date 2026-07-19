@@ -75,7 +75,26 @@ class ScoredSearchFallbackTests(unittest.TestCase):
         self.assertEqual(results[0].error, "blocked")
         self.assertIn("ingredients", results[0].score.product.missing_fields)
         self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
+    def test_search_and_score_scores_provider_search_fallback_without_fetch(self):
+        search_result = SearchResult(
+            source="DIA",
+            query="queso",
+            display_name="Queso en DIA",
+            product_id="search-dia-queso",
+            url="https://www.dia.es/search?q=queso",
+            category="Queso",
+        )
 
+        with (
+            patch("peat_product_scorer.scorer.search_products", return_value=[search_result]),
+            patch("peat_product_scorer.scorer.fetch_product") as fetch_mock,
+        ):
+            results = search_and_score("queso", providers=["DIA"])
 
+        fetch_mock.assert_not_called()
+        self.assertEqual(len(results), 1)
+        self.assertIsNotNone(results[0].score)
+        self.assertIn("provider search fallback", results[0].error)
+        self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
 if __name__ == "__main__":
     unittest.main()
