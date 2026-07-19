@@ -164,7 +164,22 @@ class SupermarketStandardizationTests(unittest.TestCase):
         dia_mock.assert_not_called()
         mercadona_mock.assert_not_called()
         generic_mock.assert_called_once()
-        self.assertEqual([result.source for result in results], ["Alcampo"])
+        self.assertGreaterEqual(len(results), 1)
+        self.assertEqual({result.source for result in results}, {"Alcampo"})
+
+    def test_search_products_uses_provider_fallback_catalog(self) -> None:
+        with (
+            patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_mercadona_categories", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_generic_provider", return_value=[]),
+        ):
+            dia_results = search_products("leche", max_results=3, providers=["DIA"])
+            alcampo_results = search_products("leche", max_results=3, providers=["Alcampo"])
+
+        self.assertEqual([result.source for result in dia_results], ["DIA"])
+        self.assertEqual([result.source for result in alcampo_results], ["Alcampo"])
+        self.assertIn("608P6", dia_results[0].url)
+        self.assertIn("54178", alcampo_results[0].url)
 
 
 if __name__ == "__main__":
