@@ -12,6 +12,7 @@ from peat_product_scorer.supermarkets.fetcher import (
     _load_bonpreu_initial_state,
     _product_from_bonpreu_entity,
     _search_generic_provider,
+    _search_dia_api,
     search_products,
     _standardize_ingredient_text,
     _strip_html,
@@ -108,6 +109,35 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertIsNone(_standardize_ingredient_text(None, name="A", description=None))
         self.assertIsNone(_standardize_ingredient_text("A", name="A", description=None))
 
+    def test_dia_search_api_extracts_real_product_results(self) -> None:
+        class FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return {
+                    "search_items": [
+                        {
+                            "object_id": "133109",
+                            "display_name": "Miel de flores antigoteo Mielove de Dia 500 g",
+                            "url": "/bolleria-reposteria-y-azucar/azucar-miel-y-edulcorantes/p/133109",
+                            "brand": "Mielove de Dia",
+                            "image": "/product_images/133109/133109_ISO_0_ES.jpg",
+                            "l1_category_description": "Bolleria, reposteria y azucar",
+                            "prices": {"price": 3.09, "currency": "EUR"},
+                        }
+                    ]
+                }
+
+        with patch("peat_product_scorer.supermarkets.fetcher.requests.get", return_value=FakeResponse()) as get_mock:
+            results = _search_dia_api("miel", 5)
+
+        get_mock.assert_called_once()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source, "DIA")
+        self.assertEqual(results[0].product_id, "133109")
+        self.assertEqual(results[0].display_name, "Miel de flores antigoteo Mielove de Dia 500 g")
+        self.assertEqual(results[0].url, "https://www.dia.es/bolleria-reposteria-y-azucar/azucar-miel-y-edulcorantes/p/133109")
     def test_generic_provider_search_extracts_product_links(self) -> None:
         class FakeResponse:
             text = """
@@ -178,6 +208,7 @@ class SupermarketStandardizationTests(unittest.TestCase):
 
         self.assertEqual(dia_results, [])
         self.assertEqual(alcampo_results, [])
+
     def test_search_products_normalizes_generic_browser_terms(self) -> None:
         with (
             patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),

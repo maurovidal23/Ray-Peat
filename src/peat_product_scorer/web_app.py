@@ -86,7 +86,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/version")
 def api_version() -> dict[str, str]:
-    return {"version": __version__, "build": "real-provider-search"}
+    return {"version": __version__, "build": "dia-search-back"}
 
 
 @app.get("/api/connectors")

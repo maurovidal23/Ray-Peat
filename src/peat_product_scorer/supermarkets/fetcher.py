@@ -279,6 +279,28 @@ def _product_id_from_url(url: str) -> str:
 
 
 def _search_dia(query: str, max_results: int) -> list[SearchResult]:
+    api_results = _search_dia_api(query, max_results)
+    if api_results:
+        return api_results
+    return _search_dia_page_context(query, max_results)
+
+
+def _search_dia_api(query: str, max_results: int) -> list[SearchResult]:
+    try:
+        response = requests.get(
+            f"{DIA_BASE}/api/v1/search-back/search",
+            params={"q": query},
+            headers={**HEADERS, "Accept": "application/json"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception:
+        return []
+    return _dia_search_results_from_items(query, payload.get("search_items") or [], max_results)
+
+
+def _search_dia_page_context(query: str, max_results: int) -> list[SearchResult]:
     search_url = f"{DIA_BASE}/search?q={requests.utils.quote(query)}"
     try:
         response = requests.get(search_url, headers=HEADERS, timeout=15)
@@ -286,22 +308,26 @@ def _search_dia(query: str, max_results: int) -> list[SearchResult]:
         soup = BeautifulSoup(response.text, "html.parser")
         context = _load_script_json(soup, "vike_pageContext")
         search_data = (((context or {}).get("INITIAL_STATE") or {}).get("header") or {}).get("searchData") or {}
-        items = search_data.get("search_items") or []
     except Exception:
         return []
+    return _dia_search_results_from_items(query, search_data.get("search_items") or [], max_results)
 
+
+def _dia_search_results_from_items(query: str, items: list[dict[str, Any]], max_results: int) -> list[SearchResult]:
     results: list[SearchResult] = []
     for item in items[:max_results]:
-        object_id = item.get("object_id") or ""
+        object_id = item.get("object_id") or item.get("sku_id") or ""
         display_name = item.get("display_name") or ""
         product_url = urljoin(DIA_BASE, item.get("url") or "")
         prices = item.get("prices") or {}
+        if not object_id or not display_name or not product_url:
+            continue
         results.append(
             SearchResult(
                 source="DIA",
                 query=query,
                 display_name=display_name,
-                product_id=object_id,
+                product_id=str(object_id),
                 url=product_url,
                 brand=item.get("brand"),
                 price=prices.get("price"),
@@ -311,7 +337,6 @@ def _search_dia(query: str, max_results: int) -> list[SearchResult]:
             )
         )
     return results
-
 
 def _search_mercadona_categories(query: str, max_results: int) -> list[SearchResult]:
     try:
