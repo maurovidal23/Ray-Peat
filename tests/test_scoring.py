@@ -1,4 +1,5 @@
 import unittest
+from threading import Barrier
 from unittest.mock import patch
 
 from peat_product_scorer.models import Product, SearchResult
@@ -97,6 +98,67 @@ class ScoredSearchFallbackTests(unittest.TestCase):
         self.assertIsNotNone(results[0].score)
         self.assertIn("provider search fallback", results[0].error)
         self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
+
+    def test_failed_fetch_ranks_after_successful_fetch_even_with_higher_score(self):
+        failed = SearchResult(
+            source="DIA",
+            query="leche",
+            display_name="Leche entera",
+            product_id="failed",
+            url="https://www.dia.es/p/failed",
+        )
+        successful = SearchResult(
+            source="DIA",
+            query="leche",
+            display_name="Aceite de girasol",
+            product_id="successful",
+            url="https://www.dia.es/p/successful",
+        )
+
+        def fetch(result_url: str, timeout: int = 10) -> Product:
+            if result_url.endswith("failed"):
+                raise RuntimeError("blocked")
+            return Product(
+                name="Aceite de girasol",
+                ingredients=["aceite de girasol"],
+                nutrition_per_100g={"fat_g": 100},
+            )
+
+        with (
+            patch("peat_product_scorer.scorer.search_products", return_value=[failed, successful]),
+            patch("peat_product_scorer.scorer.fetch_product", side_effect=fetch),
+        ):
+            results = search_and_score("leche")
+
+        self.assertEqual([result.search.product_id for result in results], ["successful", "failed"])
+        self.assertIsNone(results[0].error)
+        self.assertEqual(results[1].error, "blocked")
+
+    def test_product_fetches_run_concurrently(self):
+        search_results = [
+            SearchResult(
+                source="DIA",
+                query="leche",
+                display_name=f"Leche {index}",
+                product_id=str(index),
+                url=f"https://www.dia.es/p/{index}",
+            )
+            for index in range(2)
+        ]
+        started = Barrier(2, timeout=2)
+
+        def fetch(result_url: str, timeout: int = 10) -> Product:
+            started.wait()
+            return Product(name=result_url, ingredients=["leche"], nutrition_per_100g={})
+
+        with (
+            patch("peat_product_scorer.scorer.search_products", return_value=search_results),
+            patch("peat_product_scorer.scorer.fetch_product", side_effect=fetch),
+        ):
+            results = search_and_score("leche")
+
+        self.assertEqual(len(results), 2)
+        self.assertTrue(all(result.error is None for result in results))
 
 if __name__ == "__main__":
     unittest.main()

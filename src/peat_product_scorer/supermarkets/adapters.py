@@ -10,8 +10,8 @@ class SupermarketAdapter:
     domains: tuple[str, ...]
 
     def matches(self, url: str) -> bool:
-        host = urlparse(url).netloc.lower()
-        return any(domain in host for domain in self.domains)
+        host = (urlparse(url).hostname or "").lower().rstrip(".")
+        return any(host == domain or host.endswith(f".{domain}") for domain in self.domains)
 
 
 ADAPTERS = (

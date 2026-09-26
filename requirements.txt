@@ -1,1 +1,5 @@
+# Development/convenience install. Production dependencies are fully pinned in
+# requirements.lock; keep this include first so the editable project resolves
+# against that reviewed set.
+-r requirements.lock
 -e .

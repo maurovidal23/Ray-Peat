@@ -6,12 +6,13 @@ ENV PORT=8090
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements.lock ./
 COPY src ./src
 COPY data ./data
 COPY examples ./examples
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -r requirements.lock \
+    && pip install --no-cache-dir --no-deps .
 
 EXPOSE 8090
 

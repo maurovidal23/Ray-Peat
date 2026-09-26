@@ -177,13 +177,32 @@ function setLoading(isLoading) {
   els.scoreButton.textContent = isLoading ? "Scoring..." : "Score product";
 }
 
+function textElement(tagName, text, className = "") {
+  const element = document.createElement(tagName);
+  if (className) element.className = className;
+  element.textContent = text === null || text === undefined ? "" : String(text);
+  return element;
+}
+
+function renderInlineMessage(container, text, isError = false) {
+  const message = textElement("p", text, `message${isError ? " error" : ""}`);
+  container.replaceChildren(message);
+}
+
+function renderEmptyState(container, heading, detail) {
+  const emptyState = document.createElement("div");
+  emptyState.className = "empty-state best-empty";
+  emptyState.append(textElement("h2", heading), textElement("p", detail));
+  container.replaceChildren(emptyState);
+}
+
 function renderPresetSearches() {
-  els.presetSearches.innerHTML = "";
+  els.presetSearches.replaceChildren();
   predefinedSearches.forEach((preset) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "preset-search";
-    button.innerHTML = `<strong>${preset.label}</strong><span>${preset.query}</span>`;
+    button.append(textElement("strong", preset.label), textElement("span", preset.query));
     button.addEventListener("click", () => {
       els.bestProductsQuery.value = preset.query;
       submitBestProducts(new Event("submit"));
@@ -193,12 +212,12 @@ function renderPresetSearches() {
 }
 
 function renderExamples() {
-  els.examplesList.innerHTML = "";
+  els.examplesList.replaceChildren();
   examples.forEach((example) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "example-button";
-    button.innerHTML = `<strong>${example.name}</strong><span>${example.source}</span>`;
+    button.append(textElement("strong", example.name), textElement("span", example.source));
     button.addEventListener("click", () => {
       setView("evaluator");
       setMode("url");
@@ -240,7 +259,7 @@ async function loadArticles() {
       await renderArticleDetail(selectedArticleId, selectedLanguage);
     }
   } catch (error) {
-    els.articleList.innerHTML = `<p class="message error">Article library could not be loaded.</p>`;
+    renderInlineMessage(els.articleList, "Article library could not be loaded.", true);
   }
 }
 
@@ -262,9 +281,9 @@ function filteredArticles() {
 
 function renderArticles() {
   const filtered = filteredArticles();
-  els.articleList.innerHTML = "";
+  els.articleList.replaceChildren();
   if (!filtered.length) {
-    els.articleList.innerHTML = `<p class="message">No articles match this search.</p>`;
+    renderInlineMessage(els.articleList, "No articles match this search.");
     return;
   }
 
@@ -274,11 +293,11 @@ function renderArticles() {
     link.href = articleUrl(article.id, targetLanguage);
     link.className = "article-row";
     link.classList.toggle("active", article.id === selectedArticleId);
-    link.innerHTML = `
-      <span class="article-row-meta">${languageBadges(article.languages)} / ${formatWordCount(article.word_count)}</span>
-      <strong>${article.title}</strong>
-      <span>${article.excerpt}</span>
-    `;
+    link.append(
+      textElement("span", `${languageBadges(article.languages)} / ${formatWordCount(article.word_count)}`, "article-row-meta"),
+      textElement("strong", article.title),
+      textElement("span", article.excerpt),
+    );
     link.addEventListener("click", (event) => {
       event.preventDefault();
       navigateArticle(article.id, targetLanguage);
@@ -288,7 +307,7 @@ function renderArticles() {
 }
 
 async function renderArticleDetail(articleId, language) {
-  els.articleReader.innerHTML = `<p class="message">Loading article...</p>`;
+  renderInlineMessage(els.articleReader, "Loading article...");
   try {
     const params = language ? `?lang=${encodeURIComponent(language)}` : "";
     const response = await fetch(`/api/articles/${encodeURIComponent(articleId)}${params}`);
@@ -304,7 +323,11 @@ async function renderArticleDetail(articleId, language) {
 
     const meta = document.createElement("div");
     meta.className = "reader-meta";
-    meta.innerHTML = `<span>${languageLabel(article.selected_language)}</span><span>${formatWordCount(article.word_count)}</span><span>${article.source_pdf}</span>`;
+    meta.append(
+      textElement("span", languageLabel(article.selected_language)),
+      textElement("span", formatWordCount(article.word_count)),
+      textElement("span", article.source_pdf),
+    );
 
     const title = document.createElement("h2");
     title.textContent = article.title;
@@ -339,12 +362,11 @@ async function renderArticleDetail(articleId, language) {
       body.appendChild(p);
     });
 
-    els.articleReader.innerHTML = "";
-    els.articleReader.append(header, body);
+    els.articleReader.replaceChildren(header, body);
     els.articleReader.scrollTop = 0;
     renderArticles();
   } catch (error) {
-    els.articleReader.innerHTML = `<p class="message error">${error.message}</p>`;
+    renderInlineMessage(els.articleReader, error.message, true);
   }
 }
 
@@ -501,9 +523,8 @@ function diaNutritionPayload(nutritionalInfo) {
 }
 
 function stripHtml(value) {
-  const element = document.createElement("div");
-  element.innerHTML = value;
-  return element.textContent.replace(/\s+/g, " ").replace(/^ingredientes\s*:?\s*/i, "").trim();
+  const parsed = new DOMParser().parseFromString(String(value), "text/html");
+  return parsed.body.textContent.replace(/\s+/g, " ").replace(/^ingredientes\s*:?\s*/i, "").trim();
 }
 
 function diaBrandFromTitle(title) {
@@ -556,19 +577,24 @@ function bandClass(band) {
 
 function renderComponents(components, warnings) {
   els.componentCount.textContent = `${components.length} components`;
-  els.componentList.innerHTML = "";
+  els.componentList.replaceChildren();
   components.forEach((component) => {
     const row = document.createElement("div");
     row.className = "component-row";
-    row.innerHTML = `
-      <div><strong>${component.label}</strong><span>${Math.round(component.weight * 100)}% weight</span></div>
-      <meter min="0" max="100" value="${component.score}"></meter>
-      <b>${component.score}</b>
-    `;
+    const summary = document.createElement("div");
+    summary.append(
+      textElement("strong", component.label),
+      textElement("span", `${Math.round(Number(component.weight) * 100)}% weight`),
+    );
+    const meter = document.createElement("meter");
+    meter.min = 0;
+    meter.max = 100;
+    meter.value = Math.max(0, Math.min(100, Number(component.score) || 0));
+    row.append(summary, meter, textElement("b", component.score));
     els.componentList.appendChild(row);
   });
 
-  els.warningList.innerHTML = "";
+  els.warningList.replaceChildren();
   warnings.forEach((warning) => {
     const row = document.createElement("p");
     row.textContent = warning;
@@ -578,9 +604,9 @@ function renderComponents(components, warnings) {
 
 function renderReasons(reasons) {
   els.reasonCount.textContent = `${reasons.length} rules`;
-  els.reasonsList.innerHTML = "";
+  els.reasonsList.replaceChildren();
   if (!reasons.length) {
-    els.reasonsList.innerHTML = `<p class="message">No rule matched this product.</p>`;
+    renderInlineMessage(els.reasonsList, "No rule matched this product.");
     return;
   }
 
@@ -588,7 +614,9 @@ function renderReasons(reasons) {
     const row = document.createElement("div");
     const deltaClass = reason.delta >= 0 ? "positive" : "negative";
     row.className = "reason-row";
-    row.innerHTML = `<span class="delta ${deltaClass}">${formatDelta(reason.delta)}</span><div><strong>${reason.label}</strong><p>${reason.detail}</p></div>`;
+    const detail = document.createElement("div");
+    detail.append(textElement("strong", reason.label), textElement("p", reason.detail));
+    row.append(textElement("span", formatDelta(reason.delta), `delta ${deltaClass}`), detail);
     els.reasonsList.appendChild(row);
   });
 }
@@ -596,16 +624,16 @@ function renderReasons(reasons) {
 function renderNutrition(nutrition) {
   const entries = Object.entries(nutrition);
   els.nutritionCount.textContent = `${entries.length} values`;
-  els.nutritionList.innerHTML = "";
+  els.nutritionList.replaceChildren();
   if (!entries.length) {
-    els.nutritionList.innerHTML = `<p class="message">No structured nutrition values found.</p>`;
+    renderInlineMessage(els.nutritionList, "No structured nutrition values found.");
     return;
   }
 
   entries.forEach(([key, value]) => {
     const chip = document.createElement("div");
     chip.className = "nutrition-chip";
-    chip.innerHTML = `<span>${formatLabel(key)}</span><strong>${formatNumber(value)}</strong>`;
+    chip.append(textElement("span", formatLabel(key)), textElement("strong", formatNumber(value)));
     els.nutritionList.appendChild(chip);
   });
 }
@@ -681,7 +709,7 @@ async function loadSearchProviders() {
 
 function renderSearchProviders(providers) {
   const selected = els.bestProductsProvider.value || "all";
-  els.bestProductsProvider.innerHTML = "";
+  els.bestProductsProvider.replaceChildren();
   providers.forEach((provider) => {
     const option = document.createElement("option");
     option.value = provider;
@@ -718,7 +746,7 @@ async function submitBestProducts(event) {
   setView("best");
   setBestProductsLoading(true);
   setBestProductsMessage("Searching and scoring products...");
-  els.bestProductsList.innerHTML = "";
+  els.bestProductsList.replaceChildren();
   try {
     const response = await fetch("/api/search-score", {
       method: "POST",
@@ -736,7 +764,7 @@ async function submitBestProducts(event) {
       setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
     }
   } catch (error) {
-    els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No ranked products</h2><p>${error.message}</p></div>`;
+    renderEmptyState(els.bestProductsList, "No ranked products", error.message);
     setBestProductsMessage(error.message, true);
   } finally {
     setBestProductsLoading(false);
@@ -770,9 +798,13 @@ function shouldScoreDiaSearchResultInBrowser(item) {
 
 function renderBestProducts(results) {
   const scoredResults = results.filter((item) => item.score).sort((a, b) => b.score.score - a.score.score);
-  els.bestProductsList.innerHTML = "";
+  els.bestProductsList.replaceChildren();
   if (!scoredResults.length) {
-    els.bestProductsList.innerHTML = `<div class="empty-state best-empty"><h2>No scored products</h2><p>Try a broader search term or another product category.</p></div>`;
+    renderEmptyState(
+      els.bestProductsList,
+      "No scored products",
+      "Try a broader search term or another product category.",
+    );
     return;
   }
 
@@ -782,24 +814,42 @@ function renderBestProducts(results) {
     const productName = displayProductName(product, item.search);
     const card = document.createElement("article");
     card.className = "best-product-card";
-    card.innerHTML = `
-      <div class="rank-badge">#${index + 1}</div>
-      <div class="best-score" style="--score-color: ${scoreColor(score.score)}">
-        <strong>${score.score}</strong><span>${score.band}</span>
-      </div>
-      <div class="best-product-main">
-        <div class="best-product-meta">
-          <span>${product.source || item.search.source || "Source"}</span>
-          <span>${score.category?.label || "Unknown"}</span>
-          <span>${score.confidence}/100 confidence</span>
-        </div>
-        <h2>${productName}</h2>
-        <p>${score.comment}</p>
-        ${item.error ? `<p class="result-warning">Limited result: full provider page could not be scored, so this uses search-result evidence.</p>` : ""}
-        <div class="component-strip">${componentChips(score.components || [])}</div>
-      </div>
-      <a href="${product.url || item.search.url || '#'}" target="_blank" rel="noreferrer" class="source-button">Open</a>
-    `;
+    const scoreSummary = document.createElement("div");
+    scoreSummary.className = "best-score";
+    scoreSummary.style.setProperty("--score-color", scoreColor(score.score));
+    scoreSummary.append(textElement("strong", score.score), textElement("span", score.band));
+
+    const productMeta = document.createElement("div");
+    productMeta.className = "best-product-meta";
+    productMeta.append(
+      textElement("span", product.source || item.search?.source || "Source"),
+      textElement("span", score.category?.label || "Unknown"),
+      textElement("span", `${score.confidence}/100 confidence`),
+    );
+
+    const productMain = document.createElement("div");
+    productMain.className = "best-product-main";
+    productMain.append(productMeta, textElement("h2", productName), textElement("p", score.comment));
+    if (item.error) {
+      productMain.append(
+        textElement(
+          "p",
+          "Limited result: full provider page could not be scored, so this uses search-result evidence.",
+          "result-warning",
+        ),
+      );
+    }
+    productMain.append(componentChips(score.components || []));
+
+    card.append(textElement("div", `#${index + 1}`, "rank-badge"), scoreSummary, productMain);
+    const sourceUrl = product.url || item.search?.url;
+    if (isHttpUrl(sourceUrl)) {
+      const sourceLink = textElement("a", "Open", "source-button");
+      sourceLink.href = sourceUrl;
+      sourceLink.target = "_blank";
+      sourceLink.rel = "noopener noreferrer";
+      card.append(sourceLink);
+    }
     els.bestProductsList.appendChild(card);
   });
 }
@@ -815,9 +865,15 @@ function displayProductName(product, search) {
 }
 
 function componentChips(components) {
-  return components
-    .map((component) => `<span title="${component.label}">${component.label}: <strong>${component.score}</strong></span>`)
-    .join("");
+  const strip = document.createElement("div");
+  strip.className = "component-strip";
+  components.forEach((component) => {
+    const chip = document.createElement("span");
+    chip.title = component.label === null || component.label === undefined ? "" : String(component.label);
+    chip.append(`${chip.title}: `, textElement("strong", component.score));
+    strip.appendChild(chip);
+  });
+  return strip;
 }
 
 els.libraryViewButton.addEventListener("click", () => {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from .categories import detect_category
 from .knowledge_base import load_knowledge_base
 from .models import Product, ProductScore, ScoredSearchResult, ScoreComponent, ScoreReason, SearchResult
@@ -415,28 +417,28 @@ def search_and_score(
     providers: list[str] | None = None,
 ) -> list[ScoredSearchResult]:
     search_results = search_products(query, max_results=max_per_source, providers=providers)
-    scored: list[ScoredSearchResult] = []
-
-    for sr in search_results:
+    def fetch_and_score(sr: SearchResult) -> ScoredSearchResult:
         if sr.product_id.startswith("search-"):
             error = "Provider did not return product links; scored provider search fallback."
             fallback_score = score_product(_product_from_search_result(sr, fetch_error=error))
-            scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=error))
-        else:
-            try:
-                product = fetch_product(sr.url)
-                score = score_product(product)
-                scored.append(ScoredSearchResult(search=sr, score=score))
-            except Exception as e:
-                fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
-                scored.append(ScoredSearchResult(search=sr, score=fallback_score, error=str(e)))
+            return ScoredSearchResult(search=sr, score=fallback_score, error=error)
+        try:
+            product = fetch_product(sr.url, timeout=10)
+            return ScoredSearchResult(search=sr, score=score_product(product))
+        except Exception as e:
+            fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
+            return ScoredSearchResult(search=sr, score=fallback_score, error=str(e))
 
-        if len(scored) >= max_results:
-            break
+    candidates = search_results[:max_results]
+    with ThreadPoolExecutor(max_workers=min(4, len(candidates) or 1)) as executor:
+        scored = list(executor.map(fetch_and_score, candidates))
+
     if sort_by == "name":
-        scored.sort(key=lambda x: x.search.display_name.lower())
+        scored.sort(key=lambda x: (bool(x.error), x.search.display_name.lower()))
     else:
-        scored.sort(key=lambda x: x.score.score if x.score else 0, reverse=True)
+        # Metadata-only fallback scores are useful to display, but do not have
+        # enough evidence to outrank successfully fetched products.
+        scored.sort(key=lambda x: (bool(x.error), -(x.score.score if x.score else 0)))
 
     if min_score is not None:
         scored = [s for s in scored if s.score and s.score.score >= min_score]

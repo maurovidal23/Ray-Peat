@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import html
+import ipaddress
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -11,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from ..models import Product, SearchResult
 from ..nutrition import normalize_nutrition, split_ingredients
-from .adapters import supermarket_name_for_url
+from .adapters import ADAPTERS, supermarket_name_for_url
 from .parser import parse_product_page
 
 
@@ -45,6 +47,10 @@ GENERIC_SEARCH_PROVIDERS = (
 
 
 RELIABLE_SEARCH_PROVIDERS = ("DIA", "Mercadona", "Alcampo", "Eroski")
+MAX_RESULTS_PER_PROVIDER = 50
+MAX_CONCURRENT_SEARCHES = 4
+MAX_PRODUCT_REDIRECTS = 5
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
 
 def search_products(
@@ -53,20 +59,42 @@ def search_products(
     providers: list[str] | None = None,
 ) -> list[SearchResult]:
     query = _normalize_search_query(query)
-    per_source = max(4, min(max_results, 8))
+    max_results = max(0, min(max_results, MAX_RESULTS_PER_PROVIDER))
+    if not max_results:
+        return []
+    per_source = max_results
     selected = _normalize_provider_filter(providers)
-    provider_results: list[list[SearchResult]] = []
+    # The default/"all" view intentionally uses only providers whose result links
+    # are known to be fetchable. Less reliable providers remain available when
+    # explicitly requested by name.
+    default_sources = set(RELIABLE_SEARCH_PROVIDERS)
+    searches: list[tuple[str, Any]] = []
+    if _provider_selected("DIA", selected) and (selected is not None or "DIA" in default_sources):
+        searches.append(("DIA", lambda: _search_dia(query, per_source)))
+    if _provider_selected("Mercadona", selected) and (selected is not None or "Mercadona" in default_sources):
+        searches.append(("Mercadona", lambda: _search_mercadona_categories(query, per_source)))
+    for source, template, domain in GENERIC_SEARCH_PROVIDERS:
+        if not _provider_selected(source, selected):
+            continue
+        if selected is None and source not in default_sources:
+            continue
+        searches.append(
+            (
+                source,
+                lambda source=source, template=template, domain=domain: _search_generic_provider(
+                    source, template, domain, query, per_source
+                ),
+            )
+        )
 
-    if _provider_selected("DIA", selected):
-        provider_results.append(_search_dia(query, per_source))
-    if _provider_selected("Mercadona", selected):
-        provider_results.append(_search_mercadona_categories(query, per_source))
-
-    provider_results.extend(
-        _search_generic_provider(source, template, domain, query, per_source)
-        for source, template, domain in GENERIC_SEARCH_PROVIDERS
-        if _provider_selected(source, selected)
-    )
+    provider_results: list[list[SearchResult]] = [[] for _ in searches]
+    with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_SEARCHES, len(searches) or 1)) as executor:
+        futures = [executor.submit(search) for _, search in searches]
+        for index, future in enumerate(futures):
+            try:
+                provider_results[index] = future.result()
+            except Exception:
+                provider_results[index] = []
     return _interleave_search_results(provider_results, max_results=max_results)
 
 
@@ -315,13 +343,16 @@ def _search_dia_page_context(query: str, max_results: int) -> list[SearchResult]
 
 def _dia_search_results_from_items(query: str, items: list[dict[str, Any]], max_results: int) -> list[SearchResult]:
     results: list[SearchResult] = []
-    for item in items[:max_results]:
+    for item in items:
+        if len(results) >= max_results:
+            break
         object_id = item.get("object_id") or item.get("sku_id") or ""
         display_name = item.get("display_name") or ""
-        product_url = urljoin(DIA_BASE, item.get("url") or "")
+        raw_url = item.get("url") or ""
         prices = item.get("prices") or {}
-        if not object_id or not display_name or not product_url:
+        if not object_id or not display_name or not raw_url:
             continue
+        product_url = urljoin(DIA_BASE, raw_url)
         results.append(
             SearchResult(
                 source="DIA",
@@ -376,7 +407,7 @@ def _search_mercadona_categories(query: str, max_results: int) -> list[SearchRes
                         continue
                     seen_ids.add(pid)
                     display_name = product.get("display_name") or ""
-                    if query_lower not in display_name.lower():
+                    if not _matches_all_query_terms(display_name, query_lower):
                         continue
                     url = product.get("share_url") or ""
                     pi = product.get("price_instructions") or {}
@@ -405,6 +436,12 @@ def _query_matches_category(query_lower: str, cat_name: str) -> bool:
     return False
 
 
+def _matches_all_query_terms(value: str, query: str) -> bool:
+    value_lower = value.lower()
+    terms = _search_terms(query)
+    return not terms or all(term in value_lower for term in terms)
+
+
 def fetch_product(url: str, timeout: int = 20) -> Product:
     if "tienda.mercadona.es" in url:
         product_id = _mercadona_product_id(url)
@@ -428,10 +465,63 @@ def fetch_product(url: str, timeout: int = 20) -> Product:
     if "bonpreuesclat.cat" in url:
         return _fetch_bonpreu_product(url, timeout=timeout)
 
-    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     source = supermarket_name_for_url(url)
     return parse_product_page(response.text, url=url, source=source)
+
+
+def _get_supported_product_url(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: int,
+) -> requests.Response:
+    """Fetch a supermarket page without allowing redirects to escape the allowlist."""
+    current_url = url
+    for _ in range(MAX_PRODUCT_REDIRECTS + 1):
+        _validate_supported_product_url(current_url)
+        response = requests.get(
+            current_url,
+            headers=headers,
+            timeout=timeout,
+            allow_redirects=False,
+        )
+        if getattr(response, "status_code", 200) not in REDIRECT_STATUS_CODES:
+            return response
+        location = getattr(response, "headers", {}).get("location")
+        if not location:
+            response.raise_for_status()
+            return response
+        current_url = urljoin(current_url, location)
+    raise requests.TooManyRedirects(f"Too many redirects while fetching {url!r}")
+
+
+def _validate_supported_product_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Product URL must use HTTP or HTTPS and include a hostname.")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Product URL must not contain credentials.")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Product URL has an invalid port.") from exc
+    if port is not None and port != {"http": 80, "https": 443}[parsed.scheme.lower()]:
+        raise ValueError("Product URL must not use a nonstandard port.")
+
+    hostname = parsed.hostname.lower().rstrip(".")
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Product URL must not use an IP address.")
+    supported_domains = {
+        domain.lower().rstrip(".") for adapter in ADAPTERS for domain in adapter.domains
+    }
+    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains):
+        raise ValueError("Product URL hostname is not a supported supermarket.")
 
 def _build_product(
     *,
@@ -525,7 +615,7 @@ def _fetch_dia_product(url: str, timeout: int) -> Product:
         except requests.RequestException:
             pass
 
-    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     context = _load_script_json(soup, "vike_pageContext")
@@ -580,7 +670,7 @@ def _product_from_dia_payload(product: dict[str, Any], *, url: str, raw_key: str
 
 
 def _fetch_alcampo_product(url: str, timeout: int) -> Product:
-    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     generic = parse_product_page(response.text, url=url, source="Alcampo")
@@ -679,7 +769,7 @@ def _consum_nutrition(product_data: dict[str, Any]) -> dict[str, object]:
     return nutrition
 
 def _fetch_eroski_product(url: str, timeout: int) -> Product:
-    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     generic = parse_product_page(response.text, url=url, source="Eroski")
@@ -702,7 +792,7 @@ def _fetch_eroski_product(url: str, timeout: int) -> Product:
 
 
 def _fetch_bonpreu_product(url: str, timeout: int) -> Product:
-    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
     state = _load_bonpreu_initial_state(response.text)
     entity = _bonpreu_entity_from_state(state, url)

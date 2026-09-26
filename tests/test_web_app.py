@@ -34,6 +34,56 @@ class WebAppTests(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["band"], "avoid")
         self.assertEqual(data["product"]["nutrition_per_100g"]["fat_g"], 100.0)
+        self.assertEqual(data["product"]["raw"], {})
+
+    def test_score_endpoint_rejects_malformed_product_fields(self) -> None:
+        invalid_products = [
+            {"name": "Test", "ingredients": {"unexpected": "object"}},
+            {"name": "Test", "ingredients": ["valid", 123]},
+            {"name": "Test", "nutrition": ["fat", "10 g"]},
+            {"name": "Test", "nutrition": {"fat": {"amount": 10}}},
+            {"name": "Test", "nutrition": {"fat": True}},
+            {"name": "Test", "url": "not a URL"},
+        ]
+
+        for product in invalid_products:
+            with self.subTest(product=product):
+                response = self.client.post("/api/score", json={"product": product})
+                self.assertEqual(response.status_code, 422)
+
+    def test_score_endpoint_enforces_product_bounds(self) -> None:
+        responses = [
+            self.client.post("/api/score", json={"product": {"name": "x" * 201}}),
+            self.client.post(
+                "/api/score",
+                json={"product": {"name": "Test", "ingredients": ["x"] * 101}},
+            ),
+            self.client.post(
+                "/api/score",
+                json={"product": {"name": "Test", "nutrition": {f"n{i}": i for i in range(65)}}},
+            ),
+        ]
+
+        self.assertTrue(all(response.status_code == 422 for response in responses))
+
+    def test_score_endpoint_rejects_oversized_body(self) -> None:
+        response = self.client.post(
+            "/api/score",
+            content=b"x" * (64 * 1024 + 1),
+            headers={"content-type": "application/json"},
+        )
+
+        self.assertEqual(response.status_code, 413)
+
+    def test_score_endpoint_requires_exactly_one_input(self) -> None:
+        missing = self.client.post("/api/score", json={})
+        both = self.client.post(
+            "/api/score",
+            json={"url": "https://www.dia.es/p/1", "product": {"name": "Test"}},
+        )
+
+        self.assertEqual(missing.status_code, 422)
+        self.assertEqual(both.status_code, 422)
 
     def test_normalizes_bare_product_urls(self) -> None:
         self.assertEqual(
@@ -68,6 +118,57 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(data["product"]["source"], "DIA")
         self.assertEqual(data["product"]["missing_fields"], [])
 
+    def test_score_endpoint_accepts_exact_and_subdomain_supermarket_hosts(self) -> None:
+        urls = [
+            "https://dia.es/p/1",
+            "https://www.dia.es/p/1",
+            "https://tienda.consum.es/es/p/1",
+            "https://www.compraonline.alcampo.es/products/1",
+        ]
+        product = Product(name="Test", ingredients=[], nutrition_per_100g={})
+
+        with patch("peat_product_scorer.web_app.fetch_product", return_value=product) as fetch_mock:
+            for url in urls:
+                with self.subTest(url=url):
+                    response = self.client.post("/api/score", json={"url": url})
+                    self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(fetch_mock.call_count, len(urls))
+
+    def test_score_endpoint_rejects_ssrf_urls_before_fetch(self) -> None:
+        urls = [
+            "http://127.0.0.1/admin",
+            "http://[::1]/admin",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.4/internal",
+            "file:///etc/passwd",
+            "ftp://www.dia.es/file",
+            "https://evil.example/?next=dia.es",
+            "https://dia.es.evil.example/p/1",
+            "https://evil-dia.es/p/1",
+            "https://user:password@www.dia.es/p/1",
+            "https://www.dia.es:8443/p/1",
+        ]
+
+        with patch("peat_product_scorer.web_app.fetch_product") as fetch_mock:
+            for url in urls:
+                with self.subTest(url=url):
+                    response = self.client.post("/api/score", json={"url": url})
+                    self.assertEqual(response.status_code, 422)
+
+        fetch_mock.assert_not_called()
+
+    def test_score_endpoint_allows_only_standard_explicit_ports(self) -> None:
+        product = Product(name="Test", ingredients=[], nutrition_per_100g={})
+        urls = ["http://www.dia.es:80/p/1", "https://www.dia.es:443/p/1"]
+
+        with patch("peat_product_scorer.web_app.fetch_product", return_value=product) as fetch_mock:
+            for url in urls:
+                response = self.client.post("/api/score", json={"url": url})
+                self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(fetch_mock.call_count, len(urls))
+
     def test_search_provider_options_endpoint(self) -> None:
         response = self.client.get("/api/search-providers")
 
@@ -89,6 +190,12 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         search_mock.assert_called_once_with("leche", max_results=5, providers=["Alcampo"])
         self.assertEqual(response.json()["provider"], "Alcampo")
+
+    def test_search_endpoints_reject_excessive_result_counts(self) -> None:
+        for endpoint in ("/api/search", "/api/search-score"):
+            with self.subTest(endpoint=endpoint):
+                response = self.client.post(endpoint, json={"q": "leche", "max_results": 21})
+                self.assertEqual(response.status_code, 422)
 
     def test_products_page_contains_static_provider_options(self) -> None:
         response = self.client.get("/products")

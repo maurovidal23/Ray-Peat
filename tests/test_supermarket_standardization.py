@@ -1,4 +1,6 @@
 import unittest
+from threading import Barrier
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from peat_product_scorer.models import SearchResult
@@ -13,6 +15,8 @@ from peat_product_scorer.supermarkets.fetcher import (
     _product_from_bonpreu_entity,
     _search_generic_provider,
     _search_dia_api,
+    _search_mercadona_categories,
+    fetch_product,
     search_products,
     _standardize_ingredient_text,
     _strip_html,
@@ -20,6 +24,10 @@ from peat_product_scorer.supermarkets.fetcher import (
 
 
 class SupermarketStandardizationTests(unittest.TestCase):
+    def test_supermarket_matching_rejects_deceptive_domain_suffixes(self) -> None:
+        self.assertEqual(supermarket_name_for_url("https://www.dia.es/p/1"), "DIA")
+        self.assertEqual(supermarket_name_for_url("https://dia.es.attacker.example/p/1"), "Unknown supermarket")
+
     def test_product_title_is_not_used_as_ingredient_evidence(self) -> None:
         product = _build_product(
             name="Aceite de Girasol Alto Oleico",
@@ -138,6 +146,64 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertEqual(results[0].product_id, "133109")
         self.assertEqual(results[0].display_name, "Miel de flores antigoteo Mielove de Dia 500 g")
         self.assertEqual(results[0].url, "https://www.dia.es/bolleria-reposteria-y-azucar/azucar-miel-y-edulcorantes/p/133109")
+
+    def test_dia_search_skips_missing_urls_before_applying_limit(self) -> None:
+        class FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return {
+                    "search_items": [
+                        {"object_id": "bad", "display_name": "Missing URL"},
+                        {
+                            "object_id": "good",
+                            "display_name": "Leche entera",
+                            "url": "/lacteos/leche/p/good",
+                        },
+                    ]
+                }
+
+        with patch("peat_product_scorer.supermarkets.fetcher.requests.get", return_value=FakeResponse()):
+            results = _search_dia_api("leche", 1)
+
+        self.assertEqual([result.product_id for result in results], ["good"])
+        self.assertNotEqual(results[0].url, "https://www.dia.es")
+
+    def test_mercadona_product_matching_allows_words_between_query_terms(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload: dict[str, object]) -> None:
+                self.payload = payload
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return self.payload
+
+        category_list = {
+            "results": [{"name": "Aceites", "categories": [{"id": 12, "name": "Aceite de oliva"}]}]
+        }
+        category = {
+            "categories": [
+                {
+                    "products": [
+                        {
+                            "id": "123",
+                            "display_name": "Aceite virgen de oliva Hacendado",
+                            "share_url": "https://tienda.mercadona.es/product/123/aceite",
+                        }
+                    ]
+                }
+            ]
+        }
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher.requests.get",
+            side_effect=[FakeResponse(category_list), FakeResponse(category)],
+        ):
+            results = _search_mercadona_categories("aceite oliva", 5)
+
+        self.assertEqual([result.product_id for result in results], ["123"])
     def test_generic_provider_search_extracts_product_links(self) -> None:
         class FakeResponse:
             text = """
@@ -196,6 +262,70 @@ class SupermarketStandardizationTests(unittest.TestCase):
         generic_mock.assert_called_once()
         self.assertGreaterEqual(len(results), 1)
         self.assertEqual({result.source for result in results}, {"Alcampo"})
+
+    def test_default_search_only_queries_reliable_providers(self) -> None:
+        with (
+            patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_mercadona_categories", return_value=[]),
+            patch("peat_product_scorer.supermarkets.fetcher._search_generic_provider", return_value=[]) as generic,
+        ):
+            search_products("leche", max_results=5, providers=["all"])
+
+        queried_sources = {call.args[0] for call in generic.call_args_list}
+        self.assertEqual(queried_sources, {"Alcampo", "Eroski"})
+
+    def test_default_provider_searches_run_concurrently(self) -> None:
+        started = Barrier(4, timeout=2)
+
+        def complete_together(*args: object, **kwargs: object) -> list[SearchResult]:
+            started.wait()
+            return []
+
+        with (
+            patch("peat_product_scorer.supermarkets.fetcher._search_dia", side_effect=complete_together),
+            patch(
+                "peat_product_scorer.supermarkets.fetcher._search_mercadona_categories",
+                side_effect=complete_together,
+            ),
+            patch(
+                "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
+                side_effect=complete_together,
+            ),
+        ):
+            self.assertEqual(search_products("leche", max_results=5), [])
+
+    def test_selected_provider_honors_requested_limit_above_eight(self) -> None:
+        products = [
+            SearchResult(
+                source="Alcampo",
+                query="leche",
+                display_name=f"Leche {index}",
+                product_id=str(index),
+                url=f"https://www.compraonline.alcampo.es/products/{index}",
+            )
+            for index in range(12)
+        ]
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
+            return_value=products,
+        ) as generic:
+            results = search_products("leche", max_results=12, providers=["Alcampo"])
+
+        self.assertEqual(len(results), 12)
+        self.assertEqual(generic.call_args.args[-1], 12)
+
+    def test_product_redirect_cannot_escape_supported_hosts(self) -> None:
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher.requests.get",
+            return_value=SimpleNamespace(
+                status_code=302,
+                headers={"location": "http://169.254.169.254/latest/meta-data/"},
+            ),
+        ) as get_mock:
+            with self.assertRaisesRegex(ValueError, "IP address"):
+                fetch_product("https://www.carrefour.es/supermercado/p/example")
+
+        get_mock.assert_called_once()
 
     def test_search_products_does_not_invent_provider_results(self) -> None:
         with (
