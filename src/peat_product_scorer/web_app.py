@@ -3,8 +3,10 @@ from __future__ import annotations
 import ipaddress
 import json
 import math
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
+from threading import BoundedSemaphore
 from typing import Annotated, Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -30,6 +32,8 @@ ES_LIBRARY_PAGE = STATIC_DIR / "library" / "es" / "index.html"
 
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 MAX_INGREDIENT_TEXT_LENGTH = 10_000
+MAX_CONCURRENT_SEARCH_REQUESTS = 2
+SEARCH_REQUEST_SLOTS = BoundedSemaphore(MAX_CONCURRENT_SEARCH_REQUESTS)
 
 
 class ProductPayload(BaseModel):
@@ -224,7 +228,8 @@ def search_provider_options() -> dict[str, Any]:
 
 @app.post("/api/search")
 def search_endpoint(query: SearchQuery) -> dict[str, Any]:
-    results = search_products(query.q, max_results=query.max_results, providers=query.providers)
+    with _search_request_slot():
+        results = search_products(query.q, max_results=query.max_results, providers=query.providers)
     return {
         "query": query.q,
         "provider": query.provider or "all",
@@ -235,12 +240,13 @@ def search_endpoint(query: SearchQuery) -> dict[str, Any]:
 
 @app.post("/api/search-score")
 def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
-    scored = search_and_score(
-        query.q,
-        max_results=query.max_results,
-        max_per_source=query.max_results,
-        providers=query.providers,
-    )
+    with _search_request_slot():
+        scored = search_and_score(
+            query.q,
+            max_results=query.max_results,
+            max_per_source=query.max_results,
+            providers=query.providers,
+        )
     return {
         "query": query.q,
         "provider": query.provider or "all",
@@ -360,6 +366,16 @@ def _normalize_product_url(value: str) -> str:
     if port is not None:
         netloc = f"{netloc}:{port}"
     return urlunsplit((parsed.scheme.lower(), netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+@contextmanager
+def _search_request_slot() -> Any:
+    if not SEARCH_REQUEST_SLOTS.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Too many product searches are already running.")
+    try:
+        yield
+    finally:
+        SEARCH_REQUEST_SLOTS.release()
 
 
 def _fetch_product_for_api(url: str) -> Product:

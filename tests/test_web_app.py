@@ -197,6 +197,18 @@ class WebAppTests(unittest.TestCase):
                 response = self.client.post(endpoint, json={"q": "leche", "max_results": 21})
                 self.assertEqual(response.status_code, 422)
 
+    def test_search_endpoints_reject_work_when_capacity_is_exhausted(self) -> None:
+        for endpoint in ("/api/search", "/api/search-score"):
+            with (
+                self.subTest(endpoint=endpoint),
+                patch("peat_product_scorer.web_app.SEARCH_REQUEST_SLOTS") as slots,
+            ):
+                slots.acquire.return_value = False
+                response = self.client.post(endpoint, json={"q": "leche"})
+
+                self.assertEqual(response.status_code, 429)
+                slots.release.assert_not_called()
+
     def test_products_page_contains_static_provider_options(self) -> None:
         response = self.client.get("/products")
 
