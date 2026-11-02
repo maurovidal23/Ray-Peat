@@ -311,11 +311,6 @@ class FetchProductGuardrailTests(unittest.TestCase):
                 "https://supermercado.eroski.es/productdetail/123",
                 "_fetch_eroski_product",
             ),
-            (
-                "Bon Preu / Esclat",
-                "https://www.compraonline.bonpreuesclat.cat/product/1",
-                "_fetch_bonpreu_product",
-            ),
         )
 
         for provider, url, fetch_name in cases:
@@ -346,7 +341,7 @@ class FetchProductGuardrailTests(unittest.TestCase):
             ),
             self.assertRaises(ProviderEvidenceError),
         ):
-            fetcher.fetch_product("https://www.carrefour.es/supermercado/p/1")
+            fetcher.fetch_product("https://www.eroski.es/supermercado/p/1")
 
 
 class CliEvidenceTests(unittest.TestCase):

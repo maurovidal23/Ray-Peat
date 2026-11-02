@@ -1,3 +1,4 @@
+import re
 import unittest
 from unittest.mock import patch
 
@@ -307,16 +308,28 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(fetch_mock.call_count, len(urls))
 
+    def test_connectors_endpoint_lists_only_conforming_providers(self) -> None:
+        response = self.client.get("/api/connectors")
+
+        self.assertEqual(response.status_code, 200)
+        connectors = response.json()["connectors"]
+        self.assertEqual(
+            [connector["name"] for connector in connectors],
+            ["Mercadona", "DIA", "Alcampo", "Consum", "Eroski"],
+        )
+        self.assertNotIn("partial", response.text.lower())
+
     def test_search_provider_options_endpoint(self) -> None:
         response = self.client.get("/api/search-providers")
 
         self.assertEqual(response.status_code, 200)
         providers = response.json()["providers"]
-        self.assertIn("all", providers)
-        self.assertIn("Mercadona", providers)
-        self.assertIn("Alcampo", providers)
-        self.assertIn("Eroski", providers)
-        self.assertNotIn("Carrefour Espana", providers)
+        self.assertEqual(
+            providers,
+            ["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski"],
+        )
+        for removed_provider in ("Bon Preu / Esclat", "Esclat", "Carrefour Espana", "El Corte Ingles", "Lidl"):
+            self.assertNotIn(removed_provider, providers)
 
     def test_search_endpoint_passes_selected_provider(self) -> None:
         with patch("peat_product_scorer.web_app.search_products", return_value=[]) as search_mock:
@@ -401,15 +414,21 @@ class WebAppTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 429)
                 slots.release.assert_not_called()
 
-    def test_products_page_contains_static_provider_options(self) -> None:
+    def test_products_page_populates_provider_options_dynamically(self) -> None:
         response = self.client.get("/products")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("bestProductsProvider", response.text)
-        self.assertIn('option value="Mercadona"', response.text)
-        self.assertIn('option value="Alcampo"', response.text)
-        self.assertIn('option value="Eroski"', response.text)
-        self.assertNotIn('option value="Carrefour Espana"', response.text)
+        self.assertIn("/static/app.js", response.text)
+        provider_select = re.search(
+            r'<select id="bestProductsProvider"[^>]*>(?P<body>.*?)</select>',
+            response.text,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(provider_select)
+        self.assertNotIn("<option", provider_select.group("body"))
+        for removed_provider in ("Bon Preu / Esclat", "Esclat", "Carrefour Espana", "El Corte Ingles", "Lidl"):
+            self.assertNotIn(removed_provider, response.text)
 
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")

@@ -1,25 +1,24 @@
 import unittest
-from threading import Barrier
+from threading import Barrier, Lock
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from peat_product_scorer.models import SearchResult
 from peat_product_scorer.supermarkets.adapters import supermarket_name_for_url
 from peat_product_scorer.supermarkets.fetcher import (
-    _bonpreu_entity_from_state,
+    MAX_CONCURRENT_SEARCHES,
+    RELIABLE_SEARCH_PROVIDERS,
     _build_product,
     _consum_ingredient_text,
     _dia_product_id,
     _interleave_search_results,
-    _load_bonpreu_initial_state,
-    _product_from_bonpreu_entity,
-    _search_generic_provider,
     _search_dia_api,
+    _search_generic_provider,
     _search_mercadona_categories,
-    fetch_product,
-    search_products,
     _standardize_ingredient_text,
     _strip_html,
+    fetch_product,
+    search_products,
 )
 
 
@@ -87,28 +86,27 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertEqual(product.missing_fields, [])
 
 
-    def test_researched_supermarket_domains_are_recognized(self) -> None:
+    def test_conforming_supermarket_domains_are_recognized(self) -> None:
+        self.assertEqual(supermarket_name_for_url("https://tienda.mercadona.es/product/1"), "Mercadona")
+        self.assertEqual(supermarket_name_for_url("https://www.dia.es/p/1"), "DIA")
+        self.assertEqual(
+            supermarket_name_for_url("https://www.compraonline.alcampo.es/products/1"),
+            "Alcampo",
+        )
+        self.assertEqual(supermarket_name_for_url("https://tienda.consum.es/es/p/leche/1"), "Consum")
+        self.assertEqual(
+            supermarket_name_for_url("https://supermercado.eroski.es/productdetail/1"),
+            "Eroski",
+        )
+
+    def test_removed_supermarket_domains_are_not_recognized(self) -> None:
         self.assertEqual(
             supermarket_name_for_url("https://www.compraonline.bonpreuesclat.cat/search?q=llet"),
-            "Bon Preu / Esclat",
+            "Unknown supermarket",
         )
-        self.assertEqual(supermarket_name_for_url("https://www.aldi.es/ofertas.html"), "Aldi ES")
-        self.assertEqual(supermarket_name_for_url("https://www.hipercor.es/supermercado/"), "Hipercor")
-
-    def test_bonpreu_initial_state_product_is_standardized(self) -> None:
-        html = '<script>window.__INITIAL_STATE__ = {"data":{"products":{"productEntities":{"p1":{"productId":"p1","retailerProductId":"23597","name":"BONPREU Llet sencera 6x1L en cartro","brand":"BONPREU","categoryPath":["Lactics i ous","Llets"],"size":{"value":"6x1L"},"price":{"current":{"amount":"5.40","currency":"EUR"}}}}},"search":{"catalogue":{"data":{"productGroups":[{"type":"cluster","products":["p1"]}]}}}}};</script>'
-        state = _load_bonpreu_initial_state(html)
-        entity = _bonpreu_entity_from_state(state, "https://www.compraonline.bonpreuesclat.cat/search?q=llet")
-        product = _product_from_bonpreu_entity(
-            entity,
-            url="https://www.compraonline.bonpreuesclat.cat/search?q=llet",
-        )
-
-        self.assertEqual(product.name, "BONPREU Llet sencera 6x1L en cartro")
-        self.assertEqual(product.source, "Bon Preu / Esclat")
-        self.assertEqual(product.brand, "BONPREU")
-        self.assertIn("ingredients", product.missing_fields)
-        self.assertIn("nutrition_per_100g", product.missing_fields)
+        self.assertEqual(supermarket_name_for_url("https://www.carrefour.es/supermercado/"), "Unknown supermarket")
+        self.assertEqual(supermarket_name_for_url("https://www.aldi.es/ofertas.html"), "Unknown supermarket")
+        self.assertEqual(supermarket_name_for_url("https://www.hipercor.es/supermercado/"), "Unknown supermarket")
 
     def test_html_entities_are_removed_from_ingredient_text(self) -> None:
         self.assertEqual(_strip_html("leche&nbsp;en polvo &amp; cacao"), "leche en polvo & cacao")
@@ -272,13 +270,28 @@ class SupermarketStandardizationTests(unittest.TestCase):
             search_products("leche", max_results=5, providers=["all"])
 
         queried_sources = {call.args[0] for call in generic.call_args_list}
-        self.assertEqual(queried_sources, {"Alcampo", "Eroski"})
+        self.assertEqual(queried_sources, {"Alcampo", "Consum", "Eroski"})
 
     def test_default_provider_searches_run_concurrently(self) -> None:
-        started = Barrier(4, timeout=2)
+        provider_count = len(RELIABLE_SEARCH_PROVIDERS)
+        overlap = min(provider_count, MAX_CONCURRENT_SEARCHES)
+        self.assertGreater(overlap, 1)
+        started = Barrier(overlap, timeout=2)
+        lock = Lock()
+        calls = 0
+        completed = 0
 
         def complete_together(*args: object, **kwargs: object) -> list[SearchResult]:
-            started.wait()
+            nonlocal calls, completed
+            with lock:
+                calls += 1
+                first_wave = calls <= overlap
+            # Only the first worker wave waits: the fifth provider is queued
+            # behind the four-worker limit and cannot join that barrier.
+            if first_wave:
+                started.wait()
+            with lock:
+                completed += 1
             return []
 
         with (
@@ -293,6 +306,11 @@ class SupermarketStandardizationTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(search_products("leche", max_results=5), [])
+        # search_products isolates provider exceptions, including barrier
+        # timeouts, so an empty result alone would be a false positive.
+        self.assertFalse(started.broken, "Provider overlap barrier never completed")
+        self.assertEqual(calls, provider_count)
+        self.assertEqual(completed, provider_count)
 
     def test_selected_provider_honors_requested_limit_above_eight(self) -> None:
         products = [
@@ -315,24 +333,27 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertEqual(generic.call_args.args[-1], 12)
 
     def test_product_redirect_cannot_escape_supported_hosts(self) -> None:
-        with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            return_value=SimpleNamespace(
-                status_code=302,
-                headers={"location": "http://169.254.169.254/latest/meta-data/"},
-            ),
-        ) as get_mock:
-            with self.assertRaisesRegex(ValueError, "IP address"):
-                fetch_product("https://www.carrefour.es/supermercado/p/example")
+        with (
+            patch(
+                "peat_product_scorer.supermarkets.fetcher.requests.get",
+                return_value=SimpleNamespace(
+                    status_code=302,
+                    headers={"location": "http://169.254.169.254/latest/meta-data/"},
+                ),
+            ) as get_mock,
+            self.assertRaisesRegex(ValueError, "IP address"),
+        ):
+            fetch_product("https://www.eroski.es/supermercado/p/example")
 
         get_mock.assert_called_once()
 
     def test_fetch_product_rejects_unsafe_urls_before_any_network_request(self) -> None:
         urls = (
-            "https://user:password@www.carrefour.es/supermercado/p/1",
-            "https://www.carrefour.es:8443/supermercado/p/1",
+            "https://user:password@www.eroski.es/supermercado/p/1",
+            "https://www.eroski.es:8443/supermercado/p/1",
             "https://169.254.169.254/latest/meta-data/",
-            "https://www.carrefour.es.attacker.example/p/1",
+            "https://www.eroski.es.attacker.example/p/1",
+            "https://www.carrefour.es/supermercado/p/1",
         )
 
         with patch("peat_product_scorer.supermarkets.fetcher.requests.get") as get_mock:
