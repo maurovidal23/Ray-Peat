@@ -1375,6 +1375,12 @@ select:focus {
   text-transform: uppercase;
 }
 
+.best-score.unscored {
+  border-color: var(--line);
+  border-style: dashed;
+  color: var(--muted);
+}
+
 .best-product-main {
   display: grid;
   gap: 8px;
@@ -1389,7 +1395,7 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
-.best-product-main p {
+.best-product-main p:not(.result-warning) {
   color: var(--steel);
   font-size: 0.95rem;
   line-height: 1.5;

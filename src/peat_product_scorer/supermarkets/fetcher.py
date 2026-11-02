@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import ipaddress
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -14,8 +13,8 @@ from bs4 import BeautifulSoup
 from ..models import Product, SearchResult
 from ..nutrition import normalize_nutrition, split_ingredients
 from .adapters import ADAPTERS, supermarket_name_for_url
+from .contract import require_evidence, validate_provider_url
 from .parser import parse_product_page
-
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -443,6 +442,10 @@ def _matches_all_query_terms(value: str, query: str) -> bool:
 
 
 def fetch_product(url: str, timeout: int = 20) -> Product:
+    return require_evidence(_fetch_product(url, timeout=timeout))
+
+
+def _fetch_product(url: str, timeout: int = 20) -> Product:
     if "tienda.mercadona.es" in url:
         product_id = _mercadona_product_id(url)
         if product_id:
@@ -498,30 +501,8 @@ def _get_supported_product_url(
 
 
 def _validate_supported_product_url(url: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
-        raise ValueError("Product URL must use HTTP or HTTPS and include a hostname.")
-    if parsed.username is not None or parsed.password is not None:
-        raise ValueError("Product URL must not contain credentials.")
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ValueError("Product URL has an invalid port.") from exc
-    if port is not None and port != {"http": 80, "https": 443}[parsed.scheme.lower()]:
-        raise ValueError("Product URL must not use a nonstandard port.")
-
-    hostname = parsed.hostname.lower().rstrip(".")
-    try:
-        ipaddress.ip_address(hostname)
-    except ValueError:
-        pass
-    else:
-        raise ValueError("Product URL must not use an IP address.")
-    supported_domains = {
-        domain.lower().rstrip(".") for adapter in ADAPTERS for domain in adapter.domains
-    }
-    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains):
-        raise ValueError("Product URL hostname is not a supported supermarket.")
+    domains = tuple(domain for adapter in ADAPTERS for domain in adapter.domains)
+    validate_provider_url(url, domains)
 
 def _build_product(
     *,

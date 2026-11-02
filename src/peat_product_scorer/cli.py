@@ -11,6 +11,7 @@ from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
+from .supermarkets.contract import ProviderEvidenceError
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -27,7 +28,11 @@ def score_file(path: Path) -> None:
 @app.command("score-url")
 def score_url(url: str) -> None:
     """Fetch a supermarket product page and score it."""
-    product = fetch_product(url)
+    try:
+        product = fetch_product(url)
+    except ProviderEvidenceError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
     _print_score(score_product(product))
 
 

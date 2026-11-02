@@ -3,7 +3,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from peat_product_scorer.models import Product
+from peat_product_scorer.models import Product, SearchResult
+from peat_product_scorer.supermarkets.contract import ProviderEvidenceError
 from peat_product_scorer.web_app import _normalize_product_url, app
 
 
@@ -35,6 +36,88 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(data["band"], "avoid")
         self.assertEqual(data["product"]["nutrition_per_100g"]["fat_g"], 100.0)
         self.assertEqual(data["product"]["raw"], {})
+
+    def test_score_endpoint_rejects_incomplete_provider_payload(self) -> None:
+        response = self.client.post(
+            "/api/score",
+            json={
+                "product": {
+                    "name": "Leche incompleta",
+                    "source": "DIA",
+                    "url": "https://www.dia.es/p/1",
+                    "ingredients": "leche",
+                    "nutrition": {"grasas": "3 g"},
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        data = response.json()
+        self.assertNotIn("score", data)
+        self.assertIn("evidence incomplete", data["detail"])
+
+    def test_score_endpoint_accepts_provider_payload_with_complete_evidence(self) -> None:
+        response = self.client.post(
+            "/api/score",
+            json={
+                "product": {
+                    "name": "Leche entera",
+                    "source": "DIA",
+                    "url": "https://www.dia.es/p/1",
+                    "ingredients": "leche entera",
+                    "nutrition": {
+                        "azucares": "4.7 g",
+                        "proteinas": "3.1 g",
+                        "grasas": "3.6 g",
+                        "sal": "0.1 g",
+                    },
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("score", response.json())
+
+    def test_dia_guardrail_error_stays_unscored_after_client_enrichment(self) -> None:
+        incomplete = SearchResult(
+            source="DIA",
+            query="leche",
+            display_name="Leche incompleta",
+            product_id="incomplete",
+            url="https://www.dia.es/p/incomplete",
+        )
+
+        def fetch(url: str, timeout: int = 10) -> Product:
+            raise ProviderEvidenceError("DIA evidence incomplete: missing salt_g.")
+
+        with (
+            patch("peat_product_scorer.scorer.search_products", return_value=[incomplete]),
+            patch("peat_product_scorer.scorer.fetch_product", side_effect=fetch),
+        ):
+            search_response = self.client.post(
+                "/api/search-score",
+                json={"q": "leche", "max_results": 5},
+            )
+
+        self.assertEqual(search_response.status_code, 200)
+        self.assertNotIn("score", search_response.json()["results"][0])
+
+        # The DIA browser enrichment posts the provider payload back to /api/score.
+        enrichment_response = self.client.post(
+            "/api/score",
+            json={
+                "product": {
+                    "name": "Leche incompleta",
+                    "source": "DIA",
+                    "url": "https://www.dia.es/p/incomplete",
+                    "ingredients": "leche",
+                    "nutrition": {"grasas": "3 g"},
+                }
+            },
+        )
+
+        self.assertEqual(enrichment_response.status_code, 422)
+        self.assertNotIn("score", enrichment_response.json())
 
     def test_score_endpoint_rejects_malformed_product_fields(self) -> None:
         invalid_products = [
@@ -94,6 +177,24 @@ class WebAppTests(unittest.TestCase):
             _normalize_product_url(" https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6 "),
             "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
         )
+
+    def test_score_endpoint_does_not_return_a_score_for_incomplete_evidence(self) -> None:
+        with patch(
+            "peat_product_scorer.web_app.fetch_product",
+            side_effect=ProviderEvidenceError(
+                "DIA evidence incomplete: missing salt_g.",
+                missing=("salt_g",),
+            ),
+        ):
+            response = self.client.post(
+                "/api/score",
+                json={"url": "https://www.dia.es/p/608P6"},
+            )
+
+        self.assertEqual(response.status_code, 502)
+        data = response.json()
+        self.assertNotIn("score", data)
+        self.assertIn("evidence incomplete", data["detail"])
 
     def test_score_endpoint_accepts_dia_url_payload(self) -> None:
         url = "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
@@ -190,6 +291,60 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         search_mock.assert_called_once_with("leche", max_results=5, providers=["Alcampo"])
         self.assertEqual(response.json()["provider"], "Alcampo")
+
+    def test_search_score_endpoint_keeps_unscored_rows_last_without_a_score(self) -> None:
+        incomplete = SearchResult(
+            source="DIA",
+            query="leche",
+            display_name="Aaa leche incompleta",
+            product_id="incomplete",
+            url="https://www.dia.es/p/incomplete",
+        )
+        complete = SearchResult(
+            source="DIA",
+            query="leche",
+            display_name="Zzz leche completa",
+            product_id="complete",
+            url="https://www.dia.es/p/complete",
+        )
+        complete_product = Product(
+            name="Leche entera",
+            ingredients=["leche entera"],
+            nutrition_per_100g={
+                "sugars_g": 4.7,
+                "protein_g": 3.1,
+                "fat_g": 3.6,
+                "salt_g": 0.1,
+            },
+        )
+
+        def fetch(url: str, timeout: int = 10) -> Product:
+            if url.endswith("incomplete"):
+                raise RuntimeError("evidence incomplete: missing salt_g")
+            return complete_product
+
+        with (
+            patch(
+                "peat_product_scorer.scorer.search_products",
+                return_value=[incomplete, complete],
+            ),
+            patch("peat_product_scorer.scorer.fetch_product", side_effect=fetch),
+        ):
+            response = self.client.post(
+                "/api/search-score",
+                json={"q": "leche", "max_results": 5},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(
+            [result["search"]["product_id"] for result in data["results"]],
+            ["complete", "incomplete"],
+        )
+        self.assertIn("score", data["results"][0])
+        self.assertNotIn("score", data["results"][1])
+        self.assertIn("evidence incomplete", data["results"][1]["error"])
 
     def test_search_endpoints_reject_excessive_result_counts(self) -> None:
         for endpoint in ("/api/search", "/api/search-score"):
