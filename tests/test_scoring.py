@@ -58,18 +58,18 @@ class ScoringTests(unittest.TestCase):
 class SearchAndScoreTests(unittest.TestCase):
     def test_search_and_score_returns_error_when_fetch_fails(self):
         search_result = SearchResult(
-            source="Carrefour Espana",
+            source="Consum",
             query="leche",
             display_name="Leche entera prueba",
             product_id="p1",
-            url="https://www.carrefour.es/supermercado/p/leche-entera/p1",
+            url="https://tienda.consum.es/es/p/leche-entera/1",
         )
 
         with (
             patch("peat_product_scorer.scorer.search_products", return_value=[search_result]),
             patch("peat_product_scorer.scorer.fetch_product", side_effect=RuntimeError("blocked")),
         ):
-            results = search_and_score("leche", providers=["Carrefour Espana"])
+            results = search_and_score("leche", providers=["Consum"])
 
         self.assertEqual(len(results), 1)
         self.assertIsNone(results[0].score)
