@@ -172,6 +172,20 @@ function setMessage(text, isError = false) {
   els.message.classList.toggle("error", isError);
 }
 
+function scoreErrorMessage(message) {
+  const detail = String(message || "");
+  if (/evidence incomplete/i.test(detail)) {
+    return "This product page did not include enough ingredient and nutrition data to score. Try another product.";
+  }
+  if (/product extraction failed/i.test(detail)) {
+    return "This product page could not be read, so it was not scored. Try another URL.";
+  }
+  if (/supermarket request failed/i.test(detail)) {
+    return "The supermarket did not return this product page. Try another product or URL.";
+  }
+  return detail || "The product could not be scored.";
+}
+
 function setLoading(isLoading) {
   els.scoreButton.disabled = isLoading;
   els.scoreButton.textContent = isLoading ? "Scoring..." : "Score product";
@@ -446,7 +460,7 @@ async function submitScore(event) {
     renderResult(data);
     setMessage("Score ready.");
   } catch (error) {
-    setMessage(error.message, true);
+    setMessage(scoreErrorMessage(error.message), true);
   } finally {
     setLoading(false);
   }
@@ -757,14 +771,23 @@ async function submitBestProducts(event) {
     if (!response.ok) throw new Error(data.detail || "Products could not be searched.");
     const results = await enrichDiaSearchScores(data.results || []);
     renderBestProducts(results);
+    const total = data.total || results.length;
+    const scoredCount = results.filter((item) => item.score).length;
     const providerLabel = provider === "all" ? "all providers" : provider;
-    if (!(data.total || 0) && provider !== "all") {
-      setBestProductsMessage(`No real products returned for "${query}" in ${providerLabel}. The provider may be blocking server-side search or may not have matching products.`, true);
+    if (!total && provider === "all") {
+      setBestProductsMessage(`No products found for "${query}". Try a broader search term.`, true);
+    } else if (!total) {
+      setBestProductsMessage(`No products returned for "${query}" in ${providerLabel}. The provider may be blocking server-side search or may not have matching products.`, true);
+    } else if (scoredCount < total) {
+      const scoredDetail = scoredCount === 0
+        ? "None had enough ingredient and nutrition data to score."
+        : `${scoredCount} of ${total} had enough evidence to score.`;
+      setBestProductsMessage(`${total} products found for "${query}" in ${providerLabel}. ${scoredDetail}`);
     } else {
-      setBestProductsMessage(`${data.total || 0} products scored for "${query}" in ${providerLabel}.`);
+      setBestProductsMessage(`${total} products scored for "${query}" in ${providerLabel}.`);
     }
   } catch (error) {
-    renderEmptyState(els.bestProductsList, "No ranked products", error.message);
+    renderEmptyState(els.bestProductsList, "Products could not be loaded", error.message);
     setBestProductsMessage(error.message, true);
   } finally {
     setBestProductsLoading(false);
@@ -796,53 +819,69 @@ function shouldScoreDiaSearchResultInBrowser(item) {
   return isDiaProductUrl(url);
 }
 
+function unscoredMessage(error) {
+  const detail = String(error || "").toLowerCase();
+  if (detail.includes("evidence") || detail.includes("missing")) {
+    return "This product page did not include enough ingredient and nutrition data to score.";
+  }
+  return "This product page could not be read, so it was not scored.";
+}
+
 function renderBestProducts(results) {
   const scoredResults = results.filter((item) => item.score).sort((a, b) => b.score.score - a.score.score);
+  const unscoredResults = results.filter((item) => !item.score);
+  const orderedResults = [...scoredResults, ...unscoredResults];
   els.bestProductsList.replaceChildren();
-  if (!scoredResults.length) {
+  if (!orderedResults.length) {
     renderEmptyState(
       els.bestProductsList,
-      "No scored products",
+      "No products found",
       "Try a broader search term or another product category.",
     );
     return;
   }
 
-  scoredResults.forEach((item, index) => {
+  orderedResults.forEach((item, index) => {
     const score = item.score;
-    const product = score.product || {};
-    const productName = displayProductName(product, item.search);
+    const product = score?.product || {};
+    const search = item.search || {};
     const card = document.createElement("article");
-    card.className = "best-product-card";
+    card.className = score ? "best-product-card" : "best-product-card unscored";
+
     const scoreSummary = document.createElement("div");
-    scoreSummary.className = "best-score";
-    scoreSummary.style.setProperty("--score-color", scoreColor(score.score));
-    scoreSummary.append(textElement("strong", score.score), textElement("span", score.band));
+    scoreSummary.className = score ? "best-score" : "best-score unscored";
+    if (score) {
+      scoreSummary.style.setProperty("--score-color", scoreColor(score.score));
+      scoreSummary.append(textElement("strong", score.score), textElement("span", score.band));
+    } else {
+      scoreSummary.append(textElement("strong", "-"), textElement("span", "Not scored"));
+    }
 
     const productMeta = document.createElement("div");
     productMeta.className = "best-product-meta";
     productMeta.append(
-      textElement("span", product.source || item.search?.source || "Source"),
-      textElement("span", score.category?.label || "Unknown"),
-      textElement("span", `${score.confidence}/100 confidence`),
+      textElement("span", product.source || search.source || "Source"),
+      textElement("span", score?.category?.label || search.category || "Unknown"),
     );
+    if (score) {
+      productMeta.append(textElement("span", `${score.confidence}/100 confidence`));
+    }
 
     const productMain = document.createElement("div");
     productMain.className = "best-product-main";
-    productMain.append(productMeta, textElement("h2", productName), textElement("p", score.comment));
-    if (item.error) {
-      productMain.append(
-        textElement(
-          "p",
-          "Limited result: full provider page could not be scored, so this uses search-result evidence.",
-          "result-warning",
-        ),
-      );
+    productMain.append(productMeta, textElement("h2", displayProductName(product, search)));
+    if (score) {
+      productMain.append(textElement("p", score.comment), componentChips(score.components || []));
+    } else {
+      productMain.append(textElement("p", unscoredMessage(item.error), "unscored-note"));
     }
-    productMain.append(componentChips(score.components || []));
 
-    card.append(textElement("div", `#${index + 1}`, "rank-badge"), scoreSummary, productMain);
-    const sourceUrl = product.url || item.search?.url;
+    card.append(
+      textElement("div", score ? `#${index + 1}` : "-", "rank-badge"),
+      scoreSummary,
+      productMain,
+    );
+    const sourceUrl = product.url || search.url;
     if (isHttpUrl(sourceUrl)) {
       const sourceLink = textElement("a", "Open", "source-button");
       sourceLink.href = sourceUrl;
