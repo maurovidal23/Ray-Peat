@@ -33,6 +33,9 @@ ADAPTERS = (
     SupermarketAdapter("Froiz", ("froiz.es",)),
 )
 
+# Every domain recognized by at least one adapter, in adapter declaration order.
+SUPPORTED_DOMAINS = tuple(domain for adapter in ADAPTERS for domain in adapter.domains)
+
 
 def supermarket_name_for_url(url: str) -> str:
     for adapter in ADAPTERS:

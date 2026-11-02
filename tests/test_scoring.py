@@ -55,8 +55,8 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(all(0 <= component.score <= 100 for component in result.components))
 
 
-class ScoredSearchFallbackTests(unittest.TestCase):
-    def test_search_and_score_falls_back_when_fetch_fails(self):
+class SearchAndScoreTests(unittest.TestCase):
+    def test_search_and_score_returns_error_when_fetch_fails(self):
         search_result = SearchResult(
             source="Carrefour Espana",
             query="leche",
@@ -72,12 +72,10 @@ class ScoredSearchFallbackTests(unittest.TestCase):
             results = search_and_score("leche", providers=["Carrefour Espana"])
 
         self.assertEqual(len(results), 1)
-        self.assertIsNotNone(results[0].score)
+        self.assertIsNone(results[0].score)
         self.assertEqual(results[0].error, "blocked")
-        self.assertIn("ingredients", results[0].score.product.missing_fields)
-        self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
 
-    def test_search_and_score_scores_provider_search_fallback_without_fetch(self):
+    def test_search_and_score_does_not_score_provider_search_fallback_without_fetch(self):
         search_result = SearchResult(
             source="DIA",
             query="queso",
@@ -95,9 +93,8 @@ class ScoredSearchFallbackTests(unittest.TestCase):
 
         fetch_mock.assert_not_called()
         self.assertEqual(len(results), 1)
-        self.assertIsNotNone(results[0].score)
-        self.assertIn("provider search fallback", results[0].error)
-        self.assertEqual(results[0].score.product.raw["score_basis"], "search_result_fallback")
+        self.assertIsNone(results[0].score)
+        self.assertIn("no product evidence", results[0].error)
 
     def test_failed_fetch_ranks_after_successful_fetch_even_with_higher_score(self):
         failed = SearchResult(
@@ -121,7 +118,12 @@ class ScoredSearchFallbackTests(unittest.TestCase):
             return Product(
                 name="Aceite de girasol",
                 ingredients=["aceite de girasol"],
-                nutrition_per_100g={"fat_g": 100},
+                nutrition_per_100g={
+                    "fat_g": 100,
+                    "saturated_fat_g": 15,
+                    "sugars_g": 0,
+                    "salt_g": 0,
+                },
             )
 
         with (
@@ -149,7 +151,16 @@ class ScoredSearchFallbackTests(unittest.TestCase):
 
         def fetch(result_url: str, timeout: int = 10) -> Product:
             started.wait()
-            return Product(name=result_url, ingredients=["leche"], nutrition_per_100g={})
+            return Product(
+                name=result_url,
+                ingredients=["leche"],
+                nutrition_per_100g={
+                    "sugars_g": 4.7,
+                    "protein_g": 3.1,
+                    "fat_g": 3.6,
+                    "salt_g": 0.1,
+                },
+            )
 
         with (
             patch("peat_product_scorer.scorer.search_products", return_value=search_results),

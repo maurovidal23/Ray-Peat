@@ -1375,6 +1375,16 @@ select:focus {
   text-transform: uppercase;
 }
 
+.best-score.unscored {
+  border-color: var(--line);
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.best-product-card.unscored {
+  box-shadow: none;
+}
+
 .best-product-main {
   display: grid;
   gap: 8px;
@@ -1389,7 +1399,7 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
-.best-product-main p {
+.best-product-main p:not(.unscored-note) {
   color: var(--steel);
   font-size: 0.95rem;
   line-height: 1.5;
@@ -1545,9 +1555,10 @@ select:focus {
 }
 
 
-.result-warning {
-  color: var(--amber);
+.unscored-note {
+  color: var(--steel);
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.5;
 }

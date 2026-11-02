@@ -7,6 +7,7 @@ from .knowledge_base import load_knowledge_base
 from .models import Product, ProductScore, ScoredSearchResult, ScoreComponent, ScoreReason, SearchResult
 from .nutrition import normalize_text
 from .supermarkets import fetch_product, search_products
+from .supermarkets.contract import require_evidence
 
 
 COMPONENT_WEIGHTS = {
@@ -386,27 +387,6 @@ def _build_comment(
     return f"{lead} I would be cautious with it: {negatives[0].detail}{caveat}"
 
 
-def _product_from_search_result(search_result: SearchResult, *, fetch_error: str) -> Product:
-    name = search_result.display_name
-    if not name or name.strip().lower() in {"none", "null", "undefined"}:
-        name = search_result.product_id or "Unnamed product"
-    return Product(
-        name=name,
-        source=search_result.source,
-        url=search_result.url,
-        brand=search_result.brand,
-        description=search_result.category,
-        ingredients=[],
-        nutrition_per_100g={},
-        missing_fields=["ingredients", "nutrition_per_100g"],
-        raw={
-            "search_result": search_result.model_dump(mode="json"),
-            "fetch_error": fetch_error,
-            "score_basis": "search_result_fallback",
-        },
-    )
-
-
 def search_and_score(
     query: str,
     max_results: int = 10,
@@ -417,28 +397,26 @@ def search_and_score(
     providers: list[str] | None = None,
 ) -> list[ScoredSearchResult]:
     search_results = search_products(query, max_results=max_per_source, providers=providers)
+
     def fetch_and_score(sr: SearchResult) -> ScoredSearchResult:
         if sr.product_id.startswith("search-"):
-            error = "Provider did not return product links; scored provider search fallback."
-            fallback_score = score_product(_product_from_search_result(sr, fetch_error=error))
-            return ScoredSearchResult(search=sr, score=fallback_score, error=error)
+            error = "Provider did not return product links; no product evidence available."
+            return ScoredSearchResult(search=sr, score=None, error=error)
         try:
-            product = fetch_product(sr.url, timeout=10)
+            product = require_evidence(fetch_product(sr.url, timeout=10))
             return ScoredSearchResult(search=sr, score=score_product(product))
         except Exception as e:
-            fallback_score = score_product(_product_from_search_result(sr, fetch_error=str(e)))
-            return ScoredSearchResult(search=sr, score=fallback_score, error=str(e))
+            return ScoredSearchResult(search=sr, score=None, error=str(e))
 
     candidates = search_results[:max_results]
     with ThreadPoolExecutor(max_workers=min(4, len(candidates) or 1)) as executor:
         scored = list(executor.map(fetch_and_score, candidates))
 
     if sort_by == "name":
-        scored.sort(key=lambda x: (bool(x.error), x.search.display_name.lower()))
+        scored.sort(key=lambda x: (x.score is None, x.search.display_name.lower()))
     else:
-        # Metadata-only fallback scores are useful to display, but do not have
-        # enough evidence to outrank successfully fetched products.
-        scored.sort(key=lambda x: (bool(x.error), -(x.score.score if x.score else 0)))
+        # Rows without enough evidence to score are still displayed last.
+        scored.sort(key=lambda x: (x.score is None, -(x.score.score if x.score else 0)))
 
     if min_score is not None:
         scored = [s for s in scored if s.score and s.score.score >= min_score]

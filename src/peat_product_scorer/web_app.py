@@ -21,7 +21,8 @@ from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
-from .supermarkets.adapters import ADAPTERS
+from .supermarkets.adapters import ADAPTERS, SUPPORTED_DOMAINS
+from .supermarkets.contract import ProviderEvidenceError, require_evidence
 from .supermarkets.fetcher import available_search_providers
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -340,11 +341,24 @@ def score(request: ScoreRequest) -> dict[str, Any]:
         product = _fetch_product_for_api(request.url)
     elif request.product is not None:
         product = _product_from_payload(request.product)
+        if _is_provider_payload(request.product):
+            try:
+                product = require_evidence(product)
+            except ProviderEvidenceError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
     else:
         raise HTTPException(status_code=422, detail="Provide exactly one of url or product.")
 
     result = score_product(product)
     return result.model_dump(mode="json")
+
+
+def _is_provider_payload(payload: ProductPayload) -> bool:
+    """Provider-fed payloads must satisfy the evidence contract before scoring."""
+    if payload.url is not None:
+        return True
+    source = (payload.source or "").strip().lower()
+    return bool(source) and any(adapter.name.lower() == source for adapter in ADAPTERS)
 
 
 def _normalize_product_url(value: str) -> str:
@@ -376,10 +390,10 @@ def _normalize_product_url(value: str) -> str:
     else:
         raise ValueError("Product URL must not use an IP address.")
 
-    supported_domains = {
-        domain.lower().rstrip(".") for adapter in ADAPTERS for domain in adapter.domains
-    }
-    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains):
+    supported_domains = {domain.lower().rstrip(".") for domain in SUPPORTED_DOMAINS}
+    if not any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains
+    ):
         raise ValueError("Product URL hostname is not a supported supermarket.")
 
     netloc = hostname

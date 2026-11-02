@@ -327,6 +327,21 @@ class SupermarketStandardizationTests(unittest.TestCase):
 
         get_mock.assert_called_once()
 
+    def test_fetch_product_rejects_unsafe_urls_before_any_network_request(self) -> None:
+        urls = (
+            "https://user:password@www.carrefour.es/supermercado/p/1",
+            "https://www.carrefour.es:8443/supermercado/p/1",
+            "https://169.254.169.254/latest/meta-data/",
+            "https://www.carrefour.es.attacker.example/p/1",
+        )
+
+        with patch("peat_product_scorer.supermarkets.fetcher.requests.get") as get_mock:
+            for url in urls:
+                with self.subTest(url=url), self.assertRaises(ValueError):
+                    fetch_product(url)
+
+        get_mock.assert_not_called()
+
     def test_search_products_does_not_invent_provider_results(self) -> None:
         with (
             patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),
