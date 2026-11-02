@@ -536,6 +536,18 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("DIA", spanish)
         self.assertIn("Mercadona", spanish)
 
+        from peat_product_scorer.supermarkets.fetcher import RELIABLE_SEARCH_PROVIDERS
+
+        for path in ("/", "/method", "/method-es"):
+            with self.subTest(path=path):
+                page = self.client.get(path).text
+                for provider in RELIABLE_SEARCH_PROVIDERS:
+                    self.assertIn(f"<strong>{provider}</strong>", page)
+        self.assertNotIn("Less reliable or generic providers are queried", english)
+        self.assertNotIn("Los proveedores menos fiables o genéricos se consultan", spanish)
+        self.assertIn("Non-conforming providers are not available", english)
+        self.assertIn("Los proveedores que no cumplen los requisitos no están disponibles", spanish)
+
     def test_static_pages_share_topbar_and_omit_service_status(self) -> None:
         pages = {
             "/": "method",
