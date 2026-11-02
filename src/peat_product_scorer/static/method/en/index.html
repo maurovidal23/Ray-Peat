@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How the score works — Ray Peat Product Scorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site-nav.css">
+<style>
+:root {
+  --cream: #f6f1e7;
+  --paper: #faf6ec;
+  --ink: #1d1a16;
+  --ink-soft: #3a342c;
+  --ink-muted: #7a6f5d;
+  --rule: #dcd2bb;
+  --rule-soft: #e7decb;
+  --accent: #a84317;
+  --accent-deep: #7a2e0d;
+  --accent-soft: #e5b79f;
+  --gold: #b58a2f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: "Source Serif 4", Georgia, serif;
+  line-height: 1.6;
+}
+a { color: var(--accent-deep); text-underline-offset: 3px; }
+a:hover { color: var(--accent); }
+.method-main {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 56px 28px 80px;
+}
+.method-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+h1, h2, h3, p { margin-top: 0; }
+h1 {
+  margin-bottom: 14px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 0.98;
+}
+h2 {
+  margin: 48px 0 14px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+h3 {
+  margin: 0 0 6px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+p { color: var(--ink-soft); }
+.lede { max-width: 760px; font-size: 1.15rem; }
+.lang-link {
+  align-self: start;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.callout {
+  margin-top: 28px;
+  border: 1px solid var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(250, 246, 236, 0.82);
+  padding: 18px 20px;
+}
+.callout p:last-child { margin-bottom: 0; }
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.card {
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  background: rgba(250, 246, 236, 0.72);
+  padding: 18px;
+}
+.card p { margin-bottom: 0; font-size: 0.96rem; }
+.weight {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--accent-deep);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.table-wrap { overflow-x: auto; margin-top: 18px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(250, 246, 236, 0.62);
+  font-size: 0.95rem;
+}
+th, td {
+  border-bottom: 1px solid var(--rule-soft);
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  color: var(--ink-muted);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+td code, .rule-id {
+  color: var(--accent-deep);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+.delta { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; white-space: nowrap; }
+.delta.positive { color: #2f6b47; }
+.delta.negative { color: #9f3e32; }
+.note {
+  margin-top: 14px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+.footer {
+  margin-top: 56px;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 20px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+@media (max-width: 760px) {
+  .method-main { padding: 36px 18px 56px; }
+  .method-hero { grid-template-columns: 1fr; }
+  .lang-link { justify-self: start; }
+  th, td { padding: 9px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar app-header">
+  <div class="topbar-inner">
+    <a href="/" class="brand">
+      <span class="brand-mark">Ray Peat<span class="dot">.</span></span>
+      <span class="brand-tag">Essays, articles &amp; correspondence</span>
+    </a>
+    <nav class="topnav view-switcher" aria-label="Primary view">
+      <a class="view-button" data-nav="papers" href="/articles">Papers</a>
+      <a class="view-button" data-nav="evaluator" href="/evaluator">Evaluator</a>
+      <a class="view-button" data-nav="best" href="/products">Best products</a>
+      <a class="view-button active" data-nav="method" href="/">How it works</a>
+    </nav>
+    <div class="topbar-actions"></div>
+  </div>
+</header>
+
+<main class="method-main">
+  <section class="method-hero">
+    <div>
+      <p class="eyebrow">Methodology</p>
+      <h1>How the score works.</h1>
+      <p class="lede">Every product receives a 0-100 fit score, an evidence-confidence value, a band, and the reasons that moved the result. This page explains each part in plain language.</p>
+    </div>
+    <a class="lang-link" href="/method-es" hreflang="es">Leer en español</a>
+  </section>
+
+  <section class="callout" aria-labelledby="disclaimerTitle">
+    <h2 id="disclaimerTitle" style="margin:0 0 8px;font-size:1.2rem;">Score disclaimer</h2>
+    <p>This is an explainable product filter, not medical advice. It is a heuristic interpretation of Ray Peat-style nutrition writing and a configurable rule set. A score is a preference signal for comparing products, not a diagnosis, a health claim, or a guarantee about any person's response to a food.</p>
+  </section>
+
+  <section>
+    <h2>Bands</h2>
+    <p>The score is always a whole number from 0 to 100. The final value is mapped to one of five bands using these exact thresholds:</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Band</th><th>Score range</th><th>What it means</th></tr>
+        </thead>
+        <tbody>
+          <tr data-band="strong fit"><td><strong>Strong fit</strong></td><td>80-100</td><td>The strongest matches in this framework.</td></tr>
+          <tr data-band="reasonable fit"><td><strong>Reasonable fit</strong></td><td>65-79</td><td>Mostly favorable, with fewer or milder cautions.</td></tr>
+          <tr data-band="mixed"><td><strong>Mixed</strong></td><td>45-64</td><td>Both favorable signals and meaningful cautions are present.</td></tr>
+          <tr data-band="weak fit"><td><strong>Weak fit</strong></td><td>25-44</td><td>Several cautions outweigh the favorable signals.</td></tr>
+          <tr data-band="avoid"><td><strong>Avoid</strong></td><td>0-24</td><td>A core avoid signal, or a very weak overall fit.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Five components and their weights</h2>
+    <p>The final score is a weighted mix of five component scores. Each component is scored from 0 to 100, then multiplied by its weight. The weights add up to 100%.</p>
+    <div class="card-grid">
+      <article class="card" data-component="nutrition_profile" data-weight="0.30">
+        <span class="weight">30% weight</span>
+        <h3>Nutrition profile</h3>
+        <p>Fed by nutrition values per 100 g: sugars, protein, saturated fat, salt, fiber, and calcium. The same value can be read differently depending on the detected category, such as dairy, fruit or juice, cheese, or oil.</p>
+      </article>
+      <article class="card" data-component="ingredient_profile" data-weight="0.35">
+        <span class="weight">35% weight</span>
+        <h3>Ingredient profile</h3>
+        <p>Fed by the ingredient text and the knowledge-base terms matched there, such as dairy, fruit sugar, gelatin, seed oils, soy, gums, phosphates, and added iron. The detected category provides the starting point.</p>
+      </article>
+      <article class="card" data-component="processing_profile" data-weight="0.15">
+        <span class="weight">15% weight</span>
+        <h3>Processing profile</h3>
+        <p>Fed by ingredient-list length and industrial markers: modified starch or maltodextrin, non-nutritive sweeteners, flavorings, emulsifiers, protein isolates, and lists longer than ten ingredients.</p>
+      </article>
+      <article class="card" data-component="mineral_fat_quality_profile" data-weight="0.15">
+        <span class="weight">15% weight</span>
+        <h3>Mineral and fat quality</h3>
+        <p>Fed by fat-source context (olive oil, butter, dairy fat, coconut, cocoa butter), the calcium-to-phosphorus ratio, and seed-oil signals. A calcium/phosphorus ratio at or above 1:1 adds a positive signal.</p>
+      </article>
+      <article class="card" data-component="evidence_quality" data-weight="0.05">
+        <span class="weight">5% weight</span>
+        <h3>Evidence quality</h3>
+        <p>Fed by whether ingredients and nutrition are present, whether fields are reported missing, and whether the ingredient text has a named source. This component's score is also the confidence value.</p>
+      </article>
+    </div>
+    <p class="note">The scorer does not change these weights per product. The category and the evidence available change the component scores and the reasons attached to them.</p>
+  </section>
+
+  <section>
+    <h2>The 12 knowledge-base rules</h2>
+    <p>These are the rule-level descriptions currently loaded from <code>data/knowledge/ray_peat_rules.yaml</code>. Each triggered rule contributes its delta to the component that owns it, and the reason appears in the result.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Rule</th><th>Signal</th><th>Delta</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr data-rule="dairy_positive"><td><span class="rule-id">dairy_positive</span><br><strong>Dairy or milk-based food</strong></td><td>Ingredient terms: leche, queso, yogur, yoghurt, nata, caseína</td><td class="delta positive">+14</td><td>Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats.</td></tr>
+          <tr data-rule="fruit_sugar_positive"><td><span class="rule-id">fruit_sugar_positive</span><br><strong>Fruit or juice sugar</strong></td><td>Ingredient terms: zumo, fruta, naranja, uva, manzana, miel, azúcar, sacarosa</td><td class="delta positive">+10</td><td>Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework.</td></tr>
+          <tr data-rule="gelatin_collagen_positive"><td><span class="rule-id">gelatin_collagen_positive</span><br><strong>Gelatin or collagen</strong></td><td>Ingredient terms: gelatina, colágeno</td><td class="delta positive">+8</td><td>Gelatin and collagen are favorable because this framework values glycine-rich protein.</td></tr>
+          <tr data-rule="seed_oils_negative"><td><span class="rule-id">seed_oils_negative</span><br><strong>Seed or vegetable oil</strong></td><td>Ingredient terms: sunflower oil, sunflower, refined sunflower oil, high-oleic refined oil, soybean oil, rapeseed oil, canola oil, vegetable oil, corn oil</td><td class="delta negative">-24</td><td>Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats.</td></tr>
+          <tr data-rule="soy_negative"><td><span class="rule-id">soy_negative</span><br><strong>Soy ingredient</strong></td><td>Ingredient terms: soja, soy protein, soy lecithin</td><td class="delta negative">-14</td><td>Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives.</td></tr>
+          <tr data-rule="gums_negative"><td><span class="rule-id">gums_negative</span><br><strong>Gums or carrageenan</strong></td><td>Ingredient terms: carrageenan, guar gum, xanthan gum, locust bean gum</td><td class="delta negative">-12</td><td>Gums and carrageenan are penalized because this framework is cautious about gut-irritating thickeners.</td></tr>
+          <tr data-rule="phosphate_additives_negative"><td><span class="rule-id">phosphate_additives_negative</span><br><strong>Phosphate additive</strong></td><td>Ingredient terms: phosphate, diphosphate, polyphosphate, E338, E339, E340, E341, E450, E451, E452</td><td class="delta negative">-10</td><td>Phosphate additives are penalized because this framework favors a higher calcium-to-phosphorus balance.</td></tr>
+          <tr data-rule="fortified_iron_negative"><td><span class="rule-id">fortified_iron_negative</span><br><strong>Added iron</strong></td><td>Ingredient terms: iron, ferrous fumarate, ferrous sulfate, ferric pyrophosphate</td><td class="delta negative">-12</td><td>Added iron is penalized because this framework is cautious about excess iron fortification.</td></tr>
+          <tr data-rule="high_sugar_positive"><td><span class="rule-id">high_sugar_positive</span><br><strong>Meaningful sugar content</strong></td><td>Nutrient: sugars_g at or above 8 g per 100 g</td><td class="delta positive">+6</td><td>A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.</td></tr>
+          <tr data-rule="high_protein_positive"><td><span class="rule-id">high_protein_positive</span><br><strong>Meaningful protein content</strong></td><td>Nutrient: protein_g at or above 8 g per 100 g</td><td class="delta positive">+5</td><td>A meaningful protein content is favorable, especially when the ingredient source is dairy or collagen.</td></tr>
+          <tr data-rule="high_fat_without_context_negative"><td><span class="rule-id">high_fat_without_context_negative</span><br><strong>High total fat</strong></td><td>Nutrient: fat_g at or above 20 g per 100 g</td><td class="delta negative">-7</td><td>High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.</td></tr>
+          <tr data-rule="calcium_phosphorus_positive"><td><span class="rule-id">calcium_phosphorus_positive</span><br><strong>Good calcium-to-phosphorus ratio</strong></td><td>Ratio: calcium_mg ÷ phosphorus_mg at or above 1.0</td><td class="delta positive">+12</td><td>A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>The seed-oil cap</h2>
+    <p>Seed oil is both a rule and a final framework cap. When any <span class="rule-id">seed_oils_negative</span> term triggers, the score is capped after the weighted components are added together: at <strong>20</strong> for products in the <span class="rule-id">oil_or_fat</span> category, and at <strong>42</strong> for every other category. This means a product can have positive dairy, sugar, or protein signals and still land in the <strong>avoid</strong> band when a seed oil is detected.</p>
+  </section>
+
+  <section>
+    <h2>Confidence means evidence quality</h2>
+    <p>The confidence value next to a score is the <span class="rule-id">evidence_quality</span> component score, not a second opinion about healthiness. It starts at 100 and measures how complete the evidence is:</p>
+    <ul>
+      <li>-35 when ingredients are missing.</li>
+      <li>-25 when nutrition values are missing.</li>
+      <li>-15 when <span class="rule-id">ingredients</span> is reported in <span class="rule-id">missing_fields</span>.</li>
+      <li>-10 when <span class="rule-id">nutrition_per_100g</span> is reported in <span class="rule-id">missing_fields</span>.</li>
+      <li>-5 when ingredients exist but no ingredient source is recorded.</li>
+    </ul>
+    <p>A high confidence means the score is based on more complete ingredient and nutrition evidence. A low confidence means the score is more cautious because important evidence is absent; it does not make the product better or worse by itself.</p>
+  </section>
+
+  <section>
+    <h2>Provider guardrail</h2>
+    <p>The product search has a provider guardrail so that broad searches do not silently depend on unreliable stores. The default and <strong>All providers</strong> views query only the reliable search providers: <strong>DIA</strong>, <strong>Mercadona</strong>, <strong>Alcampo</strong>, and <strong>Eroski</strong>. Less reliable or generic providers are queried only when explicitly selected by name.</p>
+    <p>The product-URL guardrail is separate and applies before any fetch: a URL must use HTTP or HTTPS, must resolve to a supported supermarket hostname (or a subdomain of one), and must not contain credentials, an IP address, or a nonstandard port. Redirects are also checked so they cannot escape the supported supermarket hosts.</p>
+  </section>
+
+  <footer class="footer">
+    <p>Ray Peat Product Scorer · Explainable heuristic scoring · Not medical advice.</p>
+  </footer>
+</main>
+</body>
+</html>

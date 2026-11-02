@@ -247,3 +247,118 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Ray Peat — Essays &amp; Articles", response.text)
+
+    def test_root_and_method_routes_serve_english_methodology(self) -> None:
+        responses = [self.client.get(path) for path in ("/", "/method")]
+
+        for response in responses:
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("How the score works.", response.text)
+            self.assertIn('data-rule="dairy_positive"', response.text)
+            self.assertIn('data-rule="calcium_phosphorus_positive"', response.text)
+        self.assertEqual(responses[0].text, responses[1].text)
+
+    def test_method_es_route_serves_spanish_methodology(self) -> None:
+        response = self.client.get("/method-es")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<html lang="es">', response.text)
+        self.assertIn("Cómo funciona la puntuación.", response.text)
+        self.assertIn("Protección de proveedores", response.text)
+        self.assertIn('data-rule="dairy_positive"', response.text)
+        self.assertIn('data-rule="calcium_phosphorus_positive"', response.text)
+
+    def test_method_pages_document_current_scoring_constants(self) -> None:
+        for path in ("/", "/method", "/method-es"):
+            response = self.client.get(path)
+            with self.subTest(path=path):
+                self.assertEqual(response.status_code, 200)
+                for value in (
+                    "30%",
+                    "35%",
+                    "15%",
+                    "5%",
+                    "80-100",
+                    "65-79",
+                    "45-64",
+                    "25-44",
+                    "0-24",
+                    "evidence_quality",
+                    "seed_oils_negative",
+                ):
+                    self.assertIn(value, response.text)
+                for band in ("strong fit", "reasonable fit", "mixed", "weak fit", "avoid"):
+                    self.assertIn(f'data-band="{band}"', response.text)
+                self.assertEqual(response.text.count("data-rule="), 12)
+
+    def test_method_pages_list_all_twelve_knowledge_base_rules(self) -> None:
+        rule_ids = (
+            "dairy_positive",
+            "fruit_sugar_positive",
+            "gelatin_collagen_positive",
+            "seed_oils_negative",
+            "soy_negative",
+            "gums_negative",
+            "phosphate_additives_negative",
+            "fortified_iron_negative",
+            "high_sugar_positive",
+            "high_protein_positive",
+            "high_fat_without_context_negative",
+            "calcium_phosphorus_positive",
+        )
+        for path in ("/", "/method-es"):
+            response = self.client.get(path)
+            with self.subTest(path=path):
+                for rule_id in rule_ids:
+                    self.assertIn(f'data-rule="{rule_id}"', response.text)
+                for delta in ("+14", "+10", "+8", "-24", "-14", "-12", "-10", "-12", "+6", "+5", "-7", "+12"):
+                    self.assertIn(delta, response.text)
+
+    def test_method_pages_define_the_provider_guardrail(self) -> None:
+        english = self.client.get("/").text
+        spanish = self.client.get("/method-es").text
+
+        self.assertIn("Provider guardrail", english)
+        self.assertIn("DIA", english)
+        self.assertIn("Mercadona", english)
+        self.assertIn("Protección de proveedores", spanish)
+        self.assertIn("DIA", spanish)
+        self.assertIn("Mercadona", spanish)
+
+    def test_static_pages_share_topbar_and_omit_service_status(self) -> None:
+        pages = {
+            "/": "method",
+            "/method": "method",
+            "/method-es": "method",
+            "/articles": "papers",
+            "/articles-es": "papers",
+        }
+        for path, active in pages.items():
+            response = self.client.get(path)
+            with self.subTest(path=path):
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('class="topbar app-header"', response.text)
+                self.assertIn('class="topnav view-switcher"', response.text)
+                for href in ('href="/articles"', 'href="/evaluator"', 'href="/products"', 'href="/"'):
+                    self.assertIn(href, response.text)
+                self.assertIn(f'class="view-button active" data-nav="{active}"', response.text)
+                self.assertNotIn("serviceStatus", response.text)
+
+    def test_app_pages_share_topbar_and_mark_active_view(self) -> None:
+        for path, active in (("/evaluator", "evaluator"), ("/products", "best")):
+            response = self.client.get(path)
+            with self.subTest(path=path):
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('class="topbar app-header"', response.text)
+                self.assertIn('class="topnav view-switcher"', response.text)
+                self.assertIn(f'class="view-button active" data-nav="{active}"', response.text)
+                self.assertIn('id="serviceStatus"', response.text)
+
+    def test_library_routes_keep_serving_english_and_spanish_pages(self) -> None:
+        english = self.client.get("/articles")
+        spanish = self.client.get("/articles-es")
+
+        self.assertEqual(english.status_code, 200)
+        self.assertEqual(spanish.status_code, 200)
+        self.assertIn("The writings of", english.text)
+        self.assertIn("Los escritos de", spanish.text)

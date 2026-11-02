@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cómo funciona la puntuación — Ray Peat Product Scorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site-nav.css">
+<style>
+:root {
+  --cream: #f6f1e7;
+  --paper: #faf6ec;
+  --ink: #1d1a16;
+  --ink-soft: #3a342c;
+  --ink-muted: #7a6f5d;
+  --rule: #dcd2bb;
+  --rule-soft: #e7decb;
+  --accent: #a84317;
+  --accent-deep: #7a2e0d;
+  --accent-soft: #e5b79f;
+  --gold: #b58a2f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: "Source Serif 4", Georgia, serif;
+  line-height: 1.6;
+}
+a { color: var(--accent-deep); text-underline-offset: 3px; }
+a:hover { color: var(--accent); }
+.method-main {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 56px 28px 80px;
+}
+.method-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+h1, h2, h3, p { margin-top: 0; }
+h1 {
+  margin-bottom: 14px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 0.98;
+}
+h2 {
+  margin: 48px 0 14px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+h3 {
+  margin: 0 0 6px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+p { color: var(--ink-soft); }
+.lede { max-width: 760px; font-size: 1.15rem; }
+.lang-link {
+  align-self: start;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.callout {
+  margin-top: 28px;
+  border: 1px solid var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(250, 246, 236, 0.82);
+  padding: 18px 20px;
+}
+.callout p:last-child { margin-bottom: 0; }
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.card {
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  background: rgba(250, 246, 236, 0.72);
+  padding: 18px;
+}
+.card p { margin-bottom: 0; font-size: 0.96rem; }
+.weight {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--accent-deep);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.table-wrap { overflow-x: auto; margin-top: 18px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(250, 246, 236, 0.62);
+  font-size: 0.95rem;
+}
+th, td {
+  border-bottom: 1px solid var(--rule-soft);
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  color: var(--ink-muted);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+td code, .rule-id {
+  color: var(--accent-deep);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+.delta { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; white-space: nowrap; }
+.delta.positive { color: #2f6b47; }
+.delta.negative { color: #9f3e32; }
+.note {
+  margin-top: 14px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+.footer {
+  margin-top: 56px;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 20px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+@media (max-width: 760px) {
+  .method-main { padding: 36px 18px 56px; }
+  .method-hero { grid-template-columns: 1fr; }
+  .lang-link { justify-self: start; }
+  th, td { padding: 9px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar app-header">
+  <div class="topbar-inner">
+    <a href="/" class="brand">
+      <span class="brand-mark">Ray Peat<span class="dot">.</span></span>
+      <span class="brand-tag">Essays, articles &amp; correspondence</span>
+    </a>
+    <nav class="topnav view-switcher" aria-label="Primary view">
+      <a class="view-button" data-nav="papers" href="/articles">Papers</a>
+      <a class="view-button" data-nav="evaluator" href="/evaluator">Evaluator</a>
+      <a class="view-button" data-nav="best" href="/products">Best products</a>
+      <a class="view-button active" data-nav="method" href="/">How it works</a>
+    </nav>
+    <div class="topbar-actions"></div>
+  </div>
+</header>
+
+<main class="method-main">
+  <section class="method-hero">
+    <div>
+      <p class="eyebrow">Metodología</p>
+      <h1>Cómo funciona la puntuación.</h1>
+      <p class="lede">Cada producto recibe una puntuación de encaje de 0 a 100, un valor de confianza en la evidencia, una banda y los motivos que movieron el resultado. Esta página explica cada parte en lenguaje claro.</p>
+    </div>
+    <a class="lang-link" href="/method" hreflang="en">Read in English</a>
+  </section>
+
+  <section class="callout" aria-labelledby="disclaimerTitle">
+    <h2 id="disclaimerTitle" style="margin:0 0 8px;font-size:1.2rem;">Aviso sobre la puntuación</h2>
+    <p>Esto es un filtro explicable de productos, no consejo médico. Es una interpretación heurística de la escritura nutricional de estilo Ray Peat y de un conjunto de reglas configurable. La puntuación es una señal de preferencia para comparar productos, no un diagnóstico, una afirmación de salud ni una garantía sobre la respuesta de ninguna persona a un alimento.</p>
+  </section>
+
+  <section>
+    <h2>Bandas</h2>
+    <p>La puntuación es siempre un número entero de 0 a 100. El valor final se asigna a una de cinco bandas con estos umbrales exactos:</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Banda</th><th>Rango</th><th>Qué significa</th></tr>
+        </thead>
+        <tbody>
+          <tr data-band="strong fit"><td><strong>Encaje fuerte</strong></td><td>80-100</td><td>Las coincidencias más sólidas dentro de este marco.</td></tr>
+          <tr data-band="reasonable fit"><td><strong>Encaje razonable</strong></td><td>65-79</td><td>En general favorable, con menos cautelas o más leves.</td></tr>
+          <tr data-band="mixed"><td><strong>Mixto</strong></td><td>45-64</td><td>Hay señales favorables y cautelas importantes al mismo tiempo.</td></tr>
+          <tr data-band="weak fit"><td><strong>Encaje débil</strong></td><td>25-44</td><td>Varias cautelas superan a las señales favorables.</td></tr>
+          <tr data-band="avoid"><td><strong>Evitar</strong></td><td>0-24</td><td>Hay una señal central de evitación o un encaje general muy débil.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cinco componentes y sus pesos</h2>
+    <p>La puntuación final es una mezcla ponderada de cinco componentes. Cada componente se puntúa de 0 a 100 y luego se multiplica por su peso. Los pesos suman 100%.</p>
+    <div class="card-grid">
+      <article class="card" data-component="nutrition_profile" data-weight="0.30">
+        <span class="weight">Peso 30%</span>
+        <h3>Perfil nutricional</h3>
+        <p>Se alimenta de los valores nutricionales por 100 g: azúcares, proteínas, grasa saturada, sal, fibra y calcio. El mismo valor puede interpretarse de forma distinta según la categoría detectada, como lácteos, fruta o zumo, queso o aceite.</p>
+      </article>
+      <article class="card" data-component="ingredient_profile" data-weight="0.35">
+        <span class="weight">Peso 35%</span>
+        <h3>Perfil de ingredientes</h3>
+        <p>Se alimenta del texto de ingredientes y de los términos de la base de conocimiento que coinciden, como lácteos, azúcar de fruta, gelatina, aceites de semillas, soja, gomas, fosfatos y hierro añadido. La categoría detectada aporta el punto de partida.</p>
+      </article>
+      <article class="card" data-component="processing_profile" data-weight="0.15">
+        <span class="weight">Peso 15%</span>
+        <h3>Perfil de procesamiento</h3>
+        <p>Se alimenta de la longitud de la lista de ingredientes y de marcadores industriales: almidón modificado o maltodextrina, edulcorantes no nutritivos, aromas, emulsionantes, aislados de proteína y listas de más de diez ingredientes.</p>
+      </article>
+      <article class="card" data-component="mineral_fat_quality_profile" data-weight="0.15">
+        <span class="weight">Peso 15%</span>
+        <h3>Calidad mineral y de grasas</h3>
+        <p>Se alimenta del contexto de la fuente de grasa (aceite de oliva, mantequilla, grasa láctea, coco, manteca de cacao), de la relación calcio/fósforo y de las señales de aceites de semillas. Una relación calcio/fósforo igual o superior a 1:1 suma una señal positiva.</p>
+      </article>
+      <article class="card" data-component="evidence_quality" data-weight="0.05">
+        <span class="weight">Peso 5%</span>
+        <h3>Calidad de la evidencia</h3>
+        <p>Se alimenta de si existen ingredientes y nutrición, de si hay campos declarados como ausentes y de si el texto de ingredientes tiene una fuente identificada. La puntuación de este componente también es el valor de confianza.</p>
+      </article>
+    </div>
+    <p class="note">El motor de puntuación no cambia estos pesos por producto. La categoría y la evidencia disponible cambian las puntuaciones de los componentes y los motivos asociados.</p>
+  </section>
+
+  <section>
+    <h2>Las 12 reglas de la base de conocimiento</h2>
+    <p>Estas son las descripciones a nivel de regla que se cargan actualmente desde <code>data/knowledge/ray_peat_rules.yaml</code>. Cada regla activada aporta su delta al componente que le corresponde y el motivo aparece en el resultado.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Regla</th><th>Señal</th><th>Delta</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>
+          <tr data-rule="dairy_positive"><td><span class="rule-id">dairy_positive</span><br><strong>Alimento lácteo o a base de leche</strong></td><td>Términos: leche, queso, yogur, yoghurt, nata, caseína</td><td class="delta positive">+14</td><td>Los alimentos lácteos suelen ser favorables en este marco porque pueden aportar calcio, azúcar y proteína con un perfil mineral mejor que muchas carnes musculares.</td></tr>
+          <tr data-rule="fruit_sugar_positive"><td><span class="rule-id">fruit_sugar_positive</span><br><strong>Azúcar de fruta o zumo</strong></td><td>Términos: zumo, fruta, naranja, uva, manzana, miel, azúcar, sacarosa</td><td class="delta positive">+10</td><td>Los azúcares de fruta, la sacarosa y la miel se tratan de forma más favorable que las fuentes de carbohidratos ricas en almidón en este marco.</td></tr>
+          <tr data-rule="gelatin_collagen_positive"><td><span class="rule-id">gelatin_collagen_positive</span><br><strong>Gelatina o colágeno</strong></td><td>Términos: gelatina, colágeno</td><td class="delta positive">+8</td><td>La gelatina y el colágeno son favorables porque este marco valora la proteína rica en glicina.</td></tr>
+          <tr data-rule="seed_oils_negative"><td><span class="rule-id">seed_oils_negative</span><br><strong>Aceite de semillas o vegetal</strong></td><td>Términos: aceite de girasol, girasol, aceite refinado de girasol, aceite refinado alto oleico, aceite de soja, aceite de colza, aceite de canola, aceite vegetal, aceite de maíz</td><td class="delta negative">-24</td><td>Los aceites de semillas y muchos aceites vegetales genéricos se penalizan con fuerza porque este marco intenta minimizar las grasas poliinsaturadas.</td></tr>
+          <tr data-rule="soy_negative"><td><span class="rule-id">soy_negative</span><br><strong>Ingrediente de soja</strong></td><td>Términos: soja, proteína de soja, lecitina de soja</td><td class="delta negative">-14</td><td>Los ingredientes de soja se tratan con cautela porque este marco tiende a evitar las proteínas de soja y sus aditivos.</td></tr>
+          <tr data-rule="gums_negative"><td><span class="rule-id">gums_negative</span><br><strong>Gomas o carragenano</strong></td><td>Términos: carragenano, carragenina, goma guar, goma xantana, goma garrofín</td><td class="delta negative">-12</td><td>Las gomas y el carragenano se penalizan porque este marco es cauteloso con los espesantes que pueden irritar el intestino.</td></tr>
+          <tr data-rule="phosphate_additives_negative"><td><span class="rule-id">phosphate_additives_negative</span><br><strong>Aditivo de fosfato</strong></td><td>Términos: fosfato, difosfato, polifosfato, E338, E339, E340, E341, E450, E451, E452</td><td class="delta negative">-10</td><td>Los aditivos de fosfato se penalizan porque este marco favorece un equilibrio calcio/fósforo más alto.</td></tr>
+          <tr data-rule="fortified_iron_negative"><td><span class="rule-id">fortified_iron_negative</span><br><strong>Hierro añadido</strong></td><td>Términos: hierro, fumarato ferroso, sulfato ferroso, pirofosfato férrico</td><td class="delta negative">-12</td><td>El hierro añadido se penaliza porque este marco es cauteloso con el exceso de fortificación con hierro.</td></tr>
+          <tr data-rule="high_sugar_positive"><td><span class="rule-id">high_sugar_positive</span><br><strong>Contenido de azúcar significativo</strong></td><td>Nutriente: sugars_g igual o superior a 8 g por 100 g</td><td class="delta positive">+6</td><td>Un contenido de azúcar significativo puede ser favorable en este marco cuando no se combina con negativos fuertes como los aceites de semillas.</td></tr>
+          <tr data-rule="high_protein_positive"><td><span class="rule-id">high_protein_positive</span><br><strong>Contenido de proteína significativo</strong></td><td>Nutriente: protein_g igual o superior a 8 g por 100 g</td><td class="delta positive">+5</td><td>Un contenido de proteína significativo es favorable, especialmente cuando la fuente del ingrediente es láctea o colágeno.</td></tr>
+          <tr data-rule="high_fat_without_context_negative"><td><span class="rule-id">high_fat_without_context_negative</span><br><strong>Grasa total alta</strong></td><td>Nutriente: fat_g igual o superior a 20 g por 100 g</td><td class="delta negative">-7</td><td>Los productos con mucha grasa necesitan contexto de ingredientes; sin fuentes claras de grasa saturada, este marco los trata con cautela.</td></tr>
+          <tr data-rule="calcium_phosphorus_positive"><td><span class="rule-id">calcium_phosphorus_positive</span><br><strong>Buena relación calcio/fósforo</strong></td><td>Relación: calcium_mg ÷ phosphorus_mg igual o superior a 1.0</td><td class="delta positive">+12</td><td>Una relación calcio/fósforo cercana o superior a 1:1 es favorable en este marco.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>El límite de los aceites de semillas</h2>
+    <p>El aceite de semillas es a la vez una regla y un límite final del marco. Cuando se activa cualquier término de <span class="rule-id">seed_oils_negative</span>, la puntuación se limita después de sumar los componentes ponderados: a <strong>20</strong> para productos de la categoría <span class="rule-id">oil_or_fat</span> y a <strong>42</strong> para cualquier otra categoría. Esto significa que un producto puede tener señales positivas de lácteos, azúcar o proteína y aun así caer en la banda <strong>evitar</strong> cuando se detecta un aceite de semillas.</p>
+  </section>
+
+  <section>
+    <h2>La confianza significa calidad de la evidencia</h2>
+    <p>El valor de confianza que aparece junto a una puntuación es la puntuación del componente <span class="rule-id">evidence_quality</span>, no una segunda opinión sobre la salubridad. Empieza en 100 y mide qué tan completa es la evidencia:</p>
+    <ul>
+      <li>-35 cuando faltan ingredientes.</li>
+      <li>-25 cuando faltan los valores nutricionales.</li>
+      <li>-15 cuando <span class="rule-id">ingredients</span> aparece en <span class="rule-id">missing_fields</span>.</li>
+      <li>-10 cuando <span class="rule-id">nutrition_per_100g</span> aparece en <span class="rule-id">missing_fields</span>.</li>
+      <li>-5 cuando existen ingredientes pero no se registra una fuente de ingredientes.</li>
+    </ul>
+    <p>Una confianza alta significa que la puntuación se basa en evidencia de ingredientes y nutrición más completa. Una confianza baja significa que la puntuación es más cautelosa porque falta evidencia importante; por sí sola no hace que el producto sea mejor ni peor.</p>
+  </section>
+
+  <section>
+    <h2>Protección de proveedores</h2>
+    <p>La búsqueda de productos aplica una protección de proveedores para que las búsquedas amplias no dependan silenciosamente de tiendas poco fiables. Las vistas predeterminada y <strong>Todos los proveedores</strong> consultan solo los proveedores de búsqueda fiables: <strong>DIA</strong>, <strong>Mercadona</strong>, <strong>Alcampo</strong> y <strong>Eroski</strong>. Los proveedores menos fiables o genéricos se consultan únicamente cuando se seleccionan explícitamente por nombre.</p>
+    <p>La protección de las URL de producto es independiente y se aplica antes de cualquier descarga: una URL debe usar HTTP o HTTPS, debe resolver a un dominio de supermercado compatible (o a un subdominio), y no puede contener credenciales, una dirección IP ni un puerto no estándar. Las redirecciones también se comprueban para que no puedan escapar de los dominios de supermercado compatibles.</p>
+  </section>
+
+  <footer class="footer">
+    <p>Ray Peat Product Scorer · Puntuación heurística explicable · No es consejo médico.</p>
+  </footer>
+</main>
+</body>
+</html>

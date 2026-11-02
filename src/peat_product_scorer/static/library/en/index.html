@@ -756,20 +756,21 @@ footer {
   .prose .body-p { font-size: 12pt; color: #000; }
 }
 </style>
+<link rel="stylesheet" href="/static/site-nav.css">
 </head>
 <body>
 
-<header class="topbar">
+<header class="topbar app-header">
   <div class="topbar-inner">
-    <a href="#" class="brand" onclick="goHome();return false;">
+    <a href="/" class="brand">
       <span class="brand-mark">Ray Peat<span class="dot">.</span></span>
       <span class="brand-tag">Essays, articles &amp; correspondence</span>
     </a>
-    <nav class="topnav">
-      <button onclick="goHome()">Archive</button>
-      <button onclick="scrollToSection('cats')">Browse</button>
-      <button onclick="scrollToSection('index')">All articles</button>
-      <button onclick="openRandom()">Open a random article</button>
+    <nav class="topnav view-switcher" aria-label="Primary view">
+      <a class="view-button active" data-nav="papers" href="/articles">Papers</a>
+      <a class="view-button" data-nav="evaluator" href="/evaluator">Evaluator</a>
+      <a class="view-button" data-nav="best" href="/products">Best products</a>
+      <a class="view-button" data-nav="method" href="/">How it works</a>
     </nav>
     <div class="topbar-actions">
       <label class="search-wrap">
@@ -778,7 +779,7 @@ footer {
         </svg>
         <input id="search" type="text" placeholder="Search titles and content…" autocomplete="off">
       </label>
-      <a class="lang-toggle" href="/products">Product browser</a><a class="lang-toggle" href="/evaluator">Evaluator</a><a class="lang-toggle" href="/articles-es">Español</a>
+      <a class="lang-toggle" href="/articles-es">Español</a>
     </div>
   </div>
 </header>
