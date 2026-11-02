@@ -11,3 +11,4 @@ build/
 data/raw/
 data/output/
 .tmp/
+.artifacts/
