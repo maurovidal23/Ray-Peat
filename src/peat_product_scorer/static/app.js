@@ -174,8 +174,14 @@ function setMessage(text, isError = false) {
 
 function scoreErrorMessage(message) {
   const detail = String(message || "");
-  if (/evidence incomplete|product extraction failed/i.test(detail)) {
+  if (/evidence incomplete/i.test(detail)) {
     return "This product page did not include enough ingredient and nutrition data to score. Try another product.";
+  }
+  if (/product extraction failed/i.test(detail)) {
+    return "This product page could not be read, so it was not scored. Try another URL.";
+  }
+  if (/supermarket request failed/i.test(detail)) {
+    return "The supermarket did not return this product page. Try another product or URL.";
   }
   return detail || "The product could not be scored.";
 }
@@ -773,7 +779,10 @@ async function submitBestProducts(event) {
     } else if (!total) {
       setBestProductsMessage(`No products returned for "${query}" in ${providerLabel}. The provider may be blocking server-side search or may not have matching products.`, true);
     } else if (scoredCount < total) {
-      setBestProductsMessage(`${total} products found for "${query}" in ${providerLabel}; ${scoredCount} had enough evidence to score.`);
+      const scoredDetail = scoredCount === 0
+        ? "None had enough ingredient and nutrition data to score."
+        : `${scoredCount} of ${total} had enough evidence to score.`;
+      setBestProductsMessage(`${total} products found for "${query}" in ${providerLabel}. ${scoredDetail}`);
     } else {
       setBestProductsMessage(`${total} products scored for "${query}" in ${providerLabel}.`);
     }
@@ -864,7 +873,7 @@ function renderBestProducts(results) {
     if (score) {
       productMain.append(textElement("p", score.comment), componentChips(score.components || []));
     } else {
-      productMain.append(textElement("p", unscoredMessage(item.error), "result-warning"));
+      productMain.append(textElement("p", unscoredMessage(item.error), "unscored-note"));
     }
 
     card.append(

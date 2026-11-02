@@ -78,6 +78,43 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("score", response.json())
 
+    def test_source_named_provider_payload_requires_complete_evidence(self) -> None:
+        response = self.client.post(
+            "/api/score",
+            json={
+                "product": {
+                    "name": "Leche incompleta",
+                    "source": "DIA",
+                    "ingredients": "leche",
+                    "nutrition": {"grasas": "3 g"},
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("evidence incomplete", response.json()["detail"])
+
+    def test_source_named_provider_payload_with_complete_evidence_scores(self) -> None:
+        response = self.client.post(
+            "/api/score",
+            json={
+                "product": {
+                    "name": "Leche entera",
+                    "source": "DIA",
+                    "ingredients": "leche entera",
+                    "nutrition": {
+                        "azucares": "4.7 g",
+                        "proteinas": "3.1 g",
+                        "grasas": "3.6 g",
+                        "sal": "0.1 g",
+                    },
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("score", response.json())
+
     def test_dia_guardrail_error_stays_unscored_after_client_enrichment(self) -> None:
         incomplete = SearchResult(
             source="DIA",

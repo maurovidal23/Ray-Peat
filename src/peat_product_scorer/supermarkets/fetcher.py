@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 from ..models import Product, SearchResult
 from ..nutrition import normalize_nutrition, split_ingredients
-from .adapters import ADAPTERS, supermarket_name_for_url
+from .adapters import SUPPORTED_DOMAINS, supermarket_name_for_url
 from .contract import require_evidence, validate_provider_url
 from .parser import parse_product_page
 
@@ -501,8 +501,8 @@ def _get_supported_product_url(
 
 
 def _validate_supported_product_url(url: str) -> None:
-    domains = tuple(domain for adapter in ADAPTERS for domain in adapter.domains)
-    validate_provider_url(url, domains)
+    validate_provider_url(url, SUPPORTED_DOMAINS)
+
 
 def _build_product(
     *,

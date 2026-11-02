@@ -21,7 +21,7 @@ from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
-from .supermarkets.adapters import ADAPTERS
+from .supermarkets.adapters import ADAPTERS, SUPPORTED_DOMAINS
 from .supermarkets.contract import ProviderEvidenceError, require_evidence
 from .supermarkets.fetcher import available_search_providers
 
@@ -370,10 +370,10 @@ def _normalize_product_url(value: str) -> str:
     else:
         raise ValueError("Product URL must not use an IP address.")
 
-    supported_domains = {
-        domain.lower().rstrip(".") for adapter in ADAPTERS for domain in adapter.domains
-    }
-    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains):
+    supported_domains = {domain.lower().rstrip(".") for domain in SUPPORTED_DOMAINS}
+    if not any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains
+    ):
         raise ValueError("Product URL hostname is not a supported supermarket.")
 
     netloc = hostname

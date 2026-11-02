@@ -16,6 +16,8 @@ from peat_product_scorer.supermarkets.contract import (
     ProductProvider,
     ProviderEvidenceError,
     check_guardrail,
+    require_evidence,
+    validate_provider_url,
 )
 
 
@@ -88,7 +90,7 @@ class GuardrailTests(unittest.TestCase):
 
         self.assertTrue(guardrail.check(product).ok)
 
-    def test_carbohydrate_g_satisfies_carbs_guardrail_slot(self) -> None:
+    def test_carbohydrate_g_does_not_satisfy_carbs_guardrail_slot(self) -> None:
         product = Product(
             name="Test product",
             ingredients=["leche"],
@@ -102,8 +104,9 @@ class GuardrailTests(unittest.TestCase):
 
         result = check_guardrail(product)
 
-        self.assertTrue(result.ok)
-        self.assertNotIn("carbs_g", result.missing)
+        self.assertFalse(result.ok)
+        self.assertIn("carbs_g", result.missing)
+        self.assertEqual(result.missing, ("saturated_fat_g", "salt_g", "carbs_g"))
 
     def test_zero_nutrients_count_as_present_evidence(self) -> None:
         product = Product(
@@ -124,6 +127,57 @@ class GuardrailTests(unittest.TestCase):
 
         with self.assertRaises(FrozenInstanceError):
             guardrail.min_nutrients = 2  # type: ignore[misc]
+
+
+class RequireEvidenceTests(unittest.TestCase):
+    def test_returns_product_when_evidence_is_complete(self) -> None:
+        product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4], ingredients=["leche"])
+
+        self.assertIs(require_evidence(product), product)
+
+    def test_raises_with_source_and_missing_nutrients(self) -> None:
+        product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:3], ingredients=["leche"])
+
+        with self.assertRaises(ProviderEvidenceError) as context:
+            require_evidence(product, source="DIA")
+
+        self.assertEqual(
+            str(context.exception),
+            "DIA evidence incomplete: missing saturated_fat_g, salt_g, carbs_g.",
+        )
+        self.assertEqual(context.exception.missing, GUARDRAIL_NUTRIENT_KEYS[3:])
+
+
+class UrlValidationTests(unittest.TestCase):
+    def test_accepts_allowlisted_hosts_and_standard_ports(self) -> None:
+        urls = (
+            "https://dia.es/p/1",
+            "https://www.dia.es/p/1",
+            "http://www.dia.es:80/p/1",
+            "https://www.dia.es:443/p/1",
+            "https://www.dia.es./p/1",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                validate_provider_url(url, ("dia.es",))
+
+    def test_rejects_unsafe_url_components(self) -> None:
+        urls = (
+            "ftp://www.dia.es/p/1",
+            "https:///p/1",
+            "https://user:password@www.dia.es/p/1",
+            "https://www.dia.es:8443/p/1",
+            "https://www.dia.es:not-a-port/p/1",
+            "https://169.254.169.254/latest/meta-data/",
+            "https://www.dia.es.attacker.example/p/1",
+            "https://evil-dia.es/p/1",
+            "https://www.carrefour.es/supermercado/p/1",
+        )
+
+        for url in urls:
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                validate_provider_url(url, ("dia.es",))
 
 
 class ProviderContractTests(unittest.TestCase):

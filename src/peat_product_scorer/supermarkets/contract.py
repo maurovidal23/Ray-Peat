@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 from ..models import Product, SearchResult
 
+# Guardrail keys are matched exactly. Nutrition normalization stores total
+# carbohydrate as carbohydrate_g; that key does not satisfy carbs_g.
 GUARDRAIL_NUTRIENT_KEYS = (
     "sugars_g",
     "protein_g",
@@ -16,10 +18,6 @@ GUARDRAIL_NUTRIENT_KEYS = (
     "salt_g",
     "carbs_g",
 )
-
-# Provider normalization emits ``carbohydrate_g`` while the guardrail key is
-# ``carbs_g``; both names describe the same nutrient.
-GUARDRAIL_NUTRIENT_ALIASES = {"carbs_g": ("carbohydrate_g",)}
 
 
 @dataclass(frozen=True)
@@ -50,7 +48,7 @@ class EvidenceGuardrail:
         nutrition = product.nutrition_per_100g or {}
         present = 0
         for key in self.nutrient_keys:
-            if not _is_finite_number(_guardrail_nutrient_value(nutrition, key)):
+            if not _is_finite_number(nutrition.get(key)):
                 missing.append(key)
             else:
                 present += 1
@@ -62,17 +60,6 @@ class EvidenceGuardrail:
 
 def check_guardrail(product: Product) -> GuardrailResult:
     return EvidenceGuardrail().check(product)
-
-
-def _guardrail_nutrient_value(nutrition: dict[str, float], key: str) -> object:
-    value = nutrition.get(key)
-    if _is_finite_number(value):
-        return value
-    for alias in GUARDRAIL_NUTRIENT_ALIASES.get(key, ()):
-        alias_value = nutrition.get(alias)
-        if _is_finite_number(alias_value):
-            return alias_value
-    return value
 
 
 def _is_finite_number(value: object) -> bool:
@@ -103,7 +90,9 @@ def validate_provider_url(url: str, domains: tuple[str, ...]) -> None:
     else:
         raise ValueError("Product URL must not use an IP address.")
     supported_domains = {domain.lower().rstrip(".") for domain in domains}
-    if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains):
+    if not any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in supported_domains
+    ):
         raise ValueError("Product URL hostname is not a supported supermarket.")
 
 

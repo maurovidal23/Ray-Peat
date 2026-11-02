@@ -55,7 +55,7 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(all(0 <= component.score <= 100 for component in result.components))
 
 
-class ScoredSearchFallbackTests(unittest.TestCase):
+class SearchAndScoreTests(unittest.TestCase):
     def test_search_and_score_returns_error_when_fetch_fails(self):
         search_result = SearchResult(
             source="Carrefour Espana",
