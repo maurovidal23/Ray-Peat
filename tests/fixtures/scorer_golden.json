@@ -1,0 +1,791 @@
+{
+  "sample_product": {
+    "score": 85,
+    "band": "strong fit",
+    "reasons": [
+      {
+        "rule_id": "dairy_positive",
+        "label": "Dairy or milk-based food",
+        "delta": 14,
+        "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche, yogur.",
+        "component": "ingredient_profile",
+        "principle": "dairy_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "leche",
+          "yogur"
+        ]
+      },
+      {
+        "rule_id": "fruit_sugar_positive",
+        "label": "Fruit or juice sugar",
+        "delta": 10,
+        "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+        "component": "ingredient_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "azucar"
+        ]
+      },
+      {
+        "rule_id": "high_sugar_positive",
+        "label": "Meaningful sugar content",
+        "delta": 6,
+        "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+        "component": "nutrition_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      },
+      {
+        "rule_id": "calcium_phosphorus_positive",
+        "label": "Good calcium-to-phosphorus ratio",
+        "delta": 12,
+        "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "mineral_balance",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 78,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": [
+          {
+            "rule_id": "high_sugar_positive",
+            "label": "Meaningful sugar content",
+            "delta": 6,
+            "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+            "component": "nutrition_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 94,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": [
+          {
+            "rule_id": "dairy_positive",
+            "label": "Dairy or milk-based food",
+            "delta": 14,
+            "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche, yogur.",
+            "component": "ingredient_profile",
+            "principle": "dairy_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "leche",
+              "yogur"
+            ]
+          },
+          {
+            "rule_id": "fruit_sugar_positive",
+            "label": "Fruit or juice sugar",
+            "delta": 10,
+            "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+            "component": "ingredient_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "azucar"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 78,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 80,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "calcium_phosphorus_positive",
+            "label": "Good calcium-to-phosphorus ratio",
+            "delta": 12,
+            "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "mineral_balance",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  },
+  "galletas_aceite_girasol": {
+    "score": 42,
+    "band": "weak fit",
+    "reasons": [
+      {
+        "rule_id": "fruit_sugar_positive",
+        "label": "Fruit or juice sugar",
+        "delta": 10,
+        "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+        "component": "ingredient_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "azucar"
+        ]
+      },
+      {
+        "rule_id": "seed_oils_negative",
+        "label": "Seed or vegetable oil",
+        "delta": -24,
+        "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "pufa_avoidance",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "aceite de girasol",
+          "girasol"
+        ]
+      },
+      {
+        "rule_id": "soy_negative",
+        "label": "Soy ingredient",
+        "delta": -14,
+        "detail": "Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives. Detected: soja, lecitina de soja.",
+        "component": "ingredient_profile",
+        "principle": "ingredient_quality",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "soja",
+          "lecitina de soja"
+        ]
+      },
+      {
+        "rule_id": "high_sugar_positive",
+        "label": "Meaningful sugar content",
+        "delta": 6,
+        "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+        "component": "nutrition_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      },
+      {
+        "rule_id": "high_fat_without_context_negative",
+        "label": "High total fat",
+        "delta": -7,
+        "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "ingredient_quality",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 56,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": [
+          {
+            "rule_id": "high_sugar_positive",
+            "label": "Meaningful sugar content",
+            "delta": 6,
+            "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+            "component": "nutrition_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 54,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": [
+          {
+            "rule_id": "fruit_sugar_positive",
+            "label": "Fruit or juice sugar",
+            "delta": 10,
+            "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+            "component": "ingredient_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "azucar"
+            ]
+          },
+          {
+            "rule_id": "soy_negative",
+            "label": "Soy ingredient",
+            "delta": -14,
+            "detail": "Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives. Detected: soja, lecitina de soja.",
+            "component": "ingredient_profile",
+            "principle": "ingredient_quality",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "soja",
+              "lecitina de soja"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 60,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 27,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "seed_oils_negative",
+            "label": "Seed or vegetable oil",
+            "delta": -24,
+            "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "pufa_avoidance",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "aceite de girasol",
+              "girasol"
+            ]
+          },
+          {
+            "rule_id": "high_fat_without_context_negative",
+            "label": "High total fat",
+            "delta": -7,
+            "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "ingredient_quality",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  },
+  "yogur_natural_azucarado": {
+    "score": 85,
+    "band": "strong fit",
+    "reasons": [
+      {
+        "rule_id": "dairy_positive",
+        "label": "Dairy or milk-based food",
+        "delta": 14,
+        "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche, yogur.",
+        "component": "ingredient_profile",
+        "principle": "dairy_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "leche",
+          "yogur"
+        ]
+      },
+      {
+        "rule_id": "fruit_sugar_positive",
+        "label": "Fruit or juice sugar",
+        "delta": 10,
+        "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+        "component": "ingredient_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "azucar"
+        ]
+      },
+      {
+        "rule_id": "high_sugar_positive",
+        "label": "Meaningful sugar content",
+        "delta": 6,
+        "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+        "component": "nutrition_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      },
+      {
+        "rule_id": "calcium_phosphorus_positive",
+        "label": "Good calcium-to-phosphorus ratio",
+        "delta": 12,
+        "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "mineral_balance",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 78,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": [
+          {
+            "rule_id": "high_sugar_positive",
+            "label": "Meaningful sugar content",
+            "delta": 6,
+            "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+            "component": "nutrition_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 94,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": [
+          {
+            "rule_id": "dairy_positive",
+            "label": "Dairy or milk-based food",
+            "delta": 14,
+            "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche, yogur.",
+            "component": "ingredient_profile",
+            "principle": "dairy_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "leche",
+              "yogur"
+            ]
+          },
+          {
+            "rule_id": "fruit_sugar_positive",
+            "label": "Fruit or juice sugar",
+            "delta": 10,
+            "detail": "Fruit sugars, sucrose, and honey are treated more favorably than starch-heavy carbohydrate sources in this framework. Detected: azucar.",
+            "component": "ingredient_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "azucar"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 78,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 80,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "calcium_phosphorus_positive",
+            "label": "Good calcium-to-phosphorus ratio",
+            "delta": 12,
+            "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "mineral_balance",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  },
+  "leche_entera": {
+    "score": 83,
+    "band": "strong fit",
+    "reasons": [
+      {
+        "rule_id": "dairy_positive",
+        "label": "Dairy or milk-based food",
+        "delta": 14,
+        "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche.",
+        "component": "ingredient_profile",
+        "principle": "dairy_context",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "leche"
+        ]
+      },
+      {
+        "rule_id": "calcium_phosphorus_positive",
+        "label": "Good calcium-to-phosphorus ratio",
+        "delta": 12,
+        "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "mineral_balance",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 78,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": []
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 84,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": [
+          {
+            "rule_id": "dairy_positive",
+            "label": "Dairy or milk-based food",
+            "delta": 14,
+            "detail": "Dairy foods are generally favorable in this framework because they can provide calcium, sugar, and protein with a better mineral profile than many muscle meats. Detected: leche.",
+            "component": "ingredient_profile",
+            "principle": "dairy_context",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "leche"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 92,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 80,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "calcium_phosphorus_positive",
+            "label": "Good calcium-to-phosphorus ratio",
+            "delta": 12,
+            "detail": "A calcium-to-phosphorus ratio around or above 1:1 is favorable in this framework.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "mineral_balance",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  },
+  "seed_oil_cookies": {
+    "score": 42,
+    "band": "weak fit",
+    "reasons": [
+      {
+        "rule_id": "seed_oils_negative",
+        "label": "Seed or vegetable oil",
+        "delta": -24,
+        "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol, aceite vegetal.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "pufa_avoidance",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "aceite de girasol",
+          "girasol",
+          "aceite vegetal"
+        ]
+      },
+      {
+        "rule_id": "soy_negative",
+        "label": "Soy ingredient",
+        "delta": -14,
+        "detail": "Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives. Detected: soja, lecitina de soja.",
+        "component": "ingredient_profile",
+        "principle": "ingredient_quality",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "soja",
+          "lecitina de soja"
+        ]
+      },
+      {
+        "rule_id": "high_sugar_positive",
+        "label": "Meaningful sugar content",
+        "delta": 6,
+        "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+        "component": "nutrition_profile",
+        "principle": "carbohydrate_context",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      },
+      {
+        "rule_id": "high_fat_without_context_negative",
+        "label": "High total fat",
+        "delta": -7,
+        "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "ingredient_quality",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 52,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": [
+          {
+            "rule_id": "high_sugar_positive",
+            "label": "Meaningful sugar content",
+            "delta": 6,
+            "detail": "A meaningful sugar content can be favorable in this framework when it is not paired with strong negatives like seed oils.",
+            "component": "nutrition_profile",
+            "principle": "carbohydrate_context",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 48,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": [
+          {
+            "rule_id": "soy_negative",
+            "label": "Soy ingredient",
+            "delta": -14,
+            "detail": "Soy ingredients are treated cautiously because this framework tends to avoid soy proteins and additives. Detected: soja, lecitina de soja.",
+            "component": "ingredient_profile",
+            "principle": "ingredient_quality",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "soja",
+              "lecitina de soja"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 78,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 27,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "seed_oils_negative",
+            "label": "Seed or vegetable oil",
+            "delta": -24,
+            "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol, aceite vegetal.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "pufa_avoidance",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "aceite de girasol",
+              "girasol",
+              "aceite vegetal"
+            ]
+          },
+          {
+            "rule_id": "high_fat_without_context_negative",
+            "label": "High total fat",
+            "delta": -7,
+            "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "ingredient_quality",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  },
+  "sunflower_oil": {
+    "score": 20,
+    "band": "avoid",
+    "reasons": [
+      {
+        "rule_id": "seed_oils_negative",
+        "label": "Seed or vegetable oil",
+        "delta": -24,
+        "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "pufa_avoidance",
+        "evidence_type": "ingredient",
+        "matched_terms": [
+          "aceite de girasol",
+          "girasol"
+        ]
+      },
+      {
+        "rule_id": "high_fat_without_context_negative",
+        "label": "High total fat",
+        "delta": -7,
+        "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+        "component": "mineral_fat_quality_profile",
+        "principle": "ingredient_quality",
+        "evidence_type": "nutrient",
+        "matched_terms": []
+      }
+    ],
+    "components": [
+      {
+        "id": "nutrition_profile",
+        "label": "Nutrition profile",
+        "score": 60,
+        "weight": 0.3,
+        "confidence": 80,
+        "reasons": []
+      },
+      {
+        "id": "ingredient_profile",
+        "label": "Ingredient profile",
+        "score": 62,
+        "weight": 0.35,
+        "confidence": 90,
+        "reasons": []
+      },
+      {
+        "id": "processing_profile",
+        "label": "Processing profile",
+        "score": 92,
+        "weight": 0.15,
+        "confidence": 85,
+        "reasons": []
+      },
+      {
+        "id": "mineral_fat_quality_profile",
+        "label": "Mineral and fat quality",
+        "score": 9,
+        "weight": 0.15,
+        "confidence": 75,
+        "reasons": [
+          {
+            "rule_id": "seed_oils_negative",
+            "label": "Seed or vegetable oil",
+            "delta": -24,
+            "detail": "Seed and many generic vegetable oils are heavily penalized because this framework tries to minimize polyunsaturated fats. Detected: aceite de girasol, girasol.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "pufa_avoidance",
+            "evidence_type": "ingredient",
+            "matched_terms": [
+              "aceite de girasol",
+              "girasol"
+            ]
+          },
+          {
+            "rule_id": "high_fat_without_context_negative",
+            "label": "High total fat",
+            "delta": -7,
+            "detail": "High-fat products need ingredient context; without clear saturated-fat sources, this framework treats them cautiously.",
+            "component": "mineral_fat_quality_profile",
+            "principle": "ingredient_quality",
+            "evidence_type": "nutrient",
+            "matched_terms": []
+          }
+        ]
+      },
+      {
+        "id": "evidence_quality",
+        "label": "Evidence quality",
+        "score": 95,
+        "weight": 0.05,
+        "confidence": 100,
+        "reasons": []
+      }
+    ],
+    "warnings": []
+  }
+}
