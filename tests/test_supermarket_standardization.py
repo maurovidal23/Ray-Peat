@@ -1,11 +1,13 @@
 import unittest
-from threading import Barrier
+from threading import Barrier, Lock
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from peat_product_scorer.models import SearchResult
 from peat_product_scorer.supermarkets.adapters import supermarket_name_for_url
 from peat_product_scorer.supermarkets.fetcher import (
+    MAX_CONCURRENT_SEARCHES,
+    RELIABLE_SEARCH_PROVIDERS,
     _build_product,
     _consum_ingredient_text,
     _dia_product_id,
@@ -271,10 +273,25 @@ class SupermarketStandardizationTests(unittest.TestCase):
         self.assertEqual(queried_sources, {"Alcampo", "Consum", "Eroski"})
 
     def test_default_provider_searches_run_concurrently(self) -> None:
-        started = Barrier(5, timeout=2)
+        provider_count = len(RELIABLE_SEARCH_PROVIDERS)
+        overlap = min(provider_count, MAX_CONCURRENT_SEARCHES)
+        self.assertGreater(overlap, 1)
+        started = Barrier(overlap, timeout=2)
+        lock = Lock()
+        calls = 0
+        completed = 0
 
         def complete_together(*args: object, **kwargs: object) -> list[SearchResult]:
-            started.wait()
+            nonlocal calls, completed
+            with lock:
+                calls += 1
+                first_wave = calls <= overlap
+            # Only the first worker wave waits: the fifth provider is queued
+            # behind the four-worker limit and cannot join that barrier.
+            if first_wave:
+                started.wait()
+            with lock:
+                completed += 1
             return []
 
         with (
@@ -289,6 +306,11 @@ class SupermarketStandardizationTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(search_products("leche", max_results=5), [])
+        # search_products isolates provider exceptions, including barrier
+        # timeouts, so an empty result alone would be a false positive.
+        self.assertFalse(started.broken, "Provider overlap barrier never completed")
+        self.assertEqual(calls, provider_count)
+        self.assertEqual(completed, provider_count)
 
     def test_selected_provider_honors_requested_limit_above_eight(self) -> None:
         products = [
