@@ -216,14 +216,12 @@ def api_version() -> dict[str, str]:
 
 @app.get("/api/connectors")
 def connectors() -> dict[str, Any]:
-    verified = {"Mercadona", "DIA", "Alcampo", "Consum", "Eroski"}
-    partial = {"Bon Preu / Esclat"}
     return {
         "connectors": [
             {
                 "name": adapter.name,
                 "domains": list(adapter.domains),
-                "status": _connector_status(adapter.name, verified=verified, partial=partial),
+                "status": "verified",
             }
             for adapter in ADAPTERS
         ]
@@ -274,14 +272,6 @@ def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
         "total": len(scored),
         "results": [s.model_dump(mode="json", exclude_none=True) for s in scored],
     }
-
-
-def _connector_status(name: str, *, verified: set[str], partial: set[str]) -> str:
-    if name in verified:
-        return "verified"
-    if name in partial:
-        return "partial"
-    return "fallback"
 
 
 @app.get("/api/articles")
