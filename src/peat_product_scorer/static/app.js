@@ -401,11 +401,8 @@ function bindExplanationEvents() {
   document.addEventListener("click", (event) => {
     const trigger = explanationTriggerFromEvent(event);
     if (!trigger) return;
-    if (activeExplanationTrigger === trigger && !explanationPopover?.hidden) {
-      closeExplanation(trigger);
-    } else {
-      openExplanation(trigger);
-    }
+    // Focus/hover may precede a touch-generated click; opening is idempotent.
+    openExplanation(trigger);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeExplanation();
@@ -749,6 +746,9 @@ async function submitScore(event) {
     renderResult(data);
     setMessage("Score ready.");
   } catch (error) {
+    // HTTP guardrail failures and failed browser fallbacks have no score payload.
+    // Replace any previous result, preserving the provider detail as plain text.
+    renderResult({ score: null, error: error.message, product: payload.product || {} });
     setMessage(scoreErrorMessage(error.message), true);
   } finally {
     setLoading(false);
@@ -863,6 +863,7 @@ function renderResult(result) {
     return;
   }
 
+  els.scoreGauge.classList.remove("hidden");
   els.scoreGauge.style.setProperty("--score", result.score);
   els.scoreGauge.style.setProperty("--score-color", scoreColor(result.score));
   els.scoreValue.textContent = result.score;
@@ -893,8 +894,9 @@ function renderInsufficientEvidence(result, product) {
     result.message ||
     "The provider did not return enough ingredient and nutrition evidence.";
 
-  els.scoreGauge.style.setProperty("--score", 0);
-  els.scoreGauge.style.setProperty("--score-color", "#d9ded9");
+  els.scoreGauge.classList.add("hidden");
+  els.scoreGauge.style.removeProperty("--score");
+  els.scoreGauge.style.removeProperty("--score-color");
   els.scoreValue.textContent = "";
   els.scoreBand.textContent = "No score";
   els.scoreBand.className = "band unscored";

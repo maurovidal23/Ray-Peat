@@ -1702,6 +1702,10 @@ select:focus {
   margin-top: 8px;
 }
 
+.breakdown-panel[hidden] {
+  display: none !important;
+}
+
 .breakdown-base,
 .breakdown-effect {
   color: var(--steel);

@@ -1,4 +1,6 @@
 import unittest
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -81,6 +83,20 @@ class FrontendExplainabilityTests(unittest.TestCase):
             ".band.unscored",
         ):
             self.assertIn(selector, self.css)
+
+    def test_hidden_breakdown_overrides_author_display(self) -> None:
+        self.assertRegex(
+            self.css,
+            r"\.breakdown-panel\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}",
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "Node is required for DOM behavior regressions")
+    def test_frontend_runtime_regressions(self) -> None:
+        result = subprocess.run(
+            ["node", str(Path(__file__).with_name("frontend_explainability_runtime.cjs"))],
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
