@@ -21,14 +21,15 @@
   <body>
     <header class="topbar app-header">
       <div class="topbar-inner">
-        <a href="/articles" class="brand">
+        <a href="/" class="brand">
           <span class="brand-mark">Ray Peat<span class="dot">.</span></span>
           <span class="brand-tag">Essays, articles &amp; correspondence</span>
         </a>
         <nav class="topnav view-switcher" aria-label="Primary view">
-          <a id="libraryViewButton" class="view-button active" href="/articles">Papers</a>
-          <button id="evaluatorViewButton" class="view-button" type="button">Evaluator</button>
-          <button id="bestProductsViewButton" class="view-button" type="button">Best products</button>
+          <a id="libraryViewButton" class="view-button" data-nav="papers" href="/articles">Papers</a>
+          <a id="evaluatorViewButton" class="view-button" data-nav="evaluator" href="/evaluator">Evaluator</a>
+          <a id="bestProductsViewButton" class="view-button" data-nav="best" href="/products">Best products</a>
+          <a class="view-button" data-nav="method" href="/">How it works</a>
         </nav>
         <div class="topbar-actions">
           <div id="serviceStatus" class="status-pill">Checking service</div>
@@ -99,13 +100,7 @@
             </label>
             <label class="field-group provider-field">
               <span>Provider</span>
-              <select id="bestProductsProvider">
-                <option value="all">All providers</option>
-                <option value="DIA">DIA</option>
-                <option value="Mercadona">Mercadona</option>
-                <option value="Alcampo">Alcampo</option>
-                <option value="Eroski">Eroski</option>
-              </select>
+              <select id="bestProductsProvider"></select>
             </label>
             <label class="field-group compact-field">
               <span>Results</span>

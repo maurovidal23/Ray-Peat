@@ -247,8 +247,7 @@ async function loadConnectors() {
     const response = await fetch("/api/connectors");
     const data = await response.json();
     const verified = data.connectors.filter((connector) => connector.status === "verified").length;
-    const partial = data.connectors.filter((connector) => connector.status === "partial").length;
-    els.connectorCount.textContent = partial ? `${verified} verified, ${partial} partial` : `${verified} verified`;
+    els.connectorCount.textContent = `${verified} verified`;
     els.serviceStatus.textContent = "Service online";
     els.serviceStatus.classList.add("ok");
   } catch (error) {
@@ -717,7 +716,7 @@ async function loadSearchProviders() {
     const data = await response.json();
     renderSearchProviders(data.providers || []);
   } catch (error) {
-    renderSearchProviders(["all", "DIA", "Mercadona", "Alcampo", "Eroski"]);
+    renderSearchProviders(["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski"]);
   }
 }
 

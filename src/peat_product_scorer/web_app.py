@@ -12,7 +12,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
@@ -29,6 +29,9 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 ARTICLE_DATA_PATH = STATIC_DIR / "articles" / "ray_peat_articles.json"
 EN_LIBRARY_PAGE = STATIC_DIR / "library" / "en" / "index.html"
 ES_LIBRARY_PAGE = STATIC_DIR / "library" / "es" / "index.html"
+EN_METHOD_PAGE = STATIC_DIR / "method" / "en" / "index.html"
+ES_METHOD_PAGE = STATIC_DIR / "method" / "es" / "index.html"
+EVALUATOR_PAGE = STATIC_DIR / "index.html"
 
 
 MAX_REQUEST_BODY_BYTES = 64 * 1024
@@ -144,19 +147,36 @@ async def limit_request_body(request: Request, call_next: Any) -> Any:
     return await call_next(request)
 
 
+def _page_with_active_nav(path: Path, active_nav: str) -> HTMLResponse:
+    html = path.read_text(encoding="utf-8")
+    marker = f'data-nav="{active_nav}"'
+    html = html.replace(f'class="view-button" {marker}', f'class="view-button active" {marker}')
+    return HTMLResponse(html)
+
+
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(EN_LIBRARY_PAGE)
+    return FileResponse(EN_METHOD_PAGE)
+
+
+@app.get("/method", include_in_schema=False)
+def method_page() -> FileResponse:
+    return FileResponse(EN_METHOD_PAGE)
+
+
+@app.get("/method-es", include_in_schema=False)
+def method_page_es() -> FileResponse:
+    return FileResponse(ES_METHOD_PAGE)
 
 
 @app.get("/evaluator", include_in_schema=False)
-def evaluator_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+def evaluator_page() -> HTMLResponse:
+    return _page_with_active_nav(EVALUATOR_PAGE, "evaluator")
 
 
 @app.get("/products", include_in_schema=False)
-def products_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+def products_page() -> HTMLResponse:
+    return _page_with_active_nav(EVALUATOR_PAGE, "best")
 
 
 @app.get("/articles", include_in_schema=False)
@@ -196,14 +216,12 @@ def api_version() -> dict[str, str]:
 
 @app.get("/api/connectors")
 def connectors() -> dict[str, Any]:
-    verified = {"Mercadona", "DIA", "Alcampo", "Consum", "Eroski"}
-    partial = {"Bon Preu / Esclat"}
     return {
         "connectors": [
             {
                 "name": adapter.name,
                 "domains": list(adapter.domains),
-                "status": _connector_status(adapter.name, verified=verified, partial=partial),
+                "status": "verified",
             }
             for adapter in ADAPTERS
         ]
@@ -254,14 +272,6 @@ def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
         "total": len(scored),
         "results": [s.model_dump(mode="json", exclude_none=True) for s in scored],
     }
-
-
-def _connector_status(name: str, *, verified: set[str], partial: set[str]) -> str:
-    if name in verified:
-        return "verified"
-    if name in partial:
-        return "partial"
-    return "fallback"
 
 
 @app.get("/api/articles")

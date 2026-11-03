@@ -1,0 +1,120 @@
+.topbar.app-header {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0;
+  background: rgba(246, 241, 231, 0.92);
+  border-bottom: 1px solid #e7decb;
+  backdrop-filter: saturate(140%) blur(8px);
+}
+
+.app-header .topbar-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 28px;
+}
+
+.app-header .brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: #1d1a16;
+  text-decoration: none;
+}
+
+.app-header .brand-mark {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.app-header .brand-mark .dot {
+  color: #a84317;
+}
+
+.app-header .brand-tag {
+  color: #7a6f5d;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-header .topnav {
+  justify-self: center;
+  display: flex;
+  gap: 24px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.app-header .view-switcher {
+  display: flex;
+  gap: 24px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.app-header .view-button {
+  display: inline-block;
+  min-height: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #3a342c;
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 0;
+  text-decoration: none;
+}
+
+.app-header .view-button.active,
+.app-header .view-button:hover {
+  border-color: #e5b79f;
+  background: transparent;
+  box-shadow: none;
+  color: #a84317;
+}
+
+.app-header .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+@media (max-width: 920px) {
+  .app-header .topbar-inner {
+    grid-template-columns: auto auto;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .app-header .topnav {
+    display: flex;
+    justify-self: end;
+    gap: 14px;
+    font-size: 12px;
+  }
+
+  .app-header .view-switcher {
+    gap: 14px;
+  }
+
+  .app-header .topbar-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .app-header .brand-tag {
+    display: none;
+  }
+}
