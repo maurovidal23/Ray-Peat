@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -45,6 +45,14 @@ class ScoreReason(BaseModel):
     matched_terms: list[str] = Field(default_factory=list)
 
 
+class ScoreContribution(BaseModel):
+    label: str
+    delta: int
+    detail: str
+    kind: Literal["adjustment", "cap"] = "adjustment"
+    rule_id: str | None = None
+
+
 class ScoreComponent(BaseModel):
     id: str
     label: str
@@ -52,6 +60,8 @@ class ScoreComponent(BaseModel):
     weight: float
     reasons: list[ScoreReason] = Field(default_factory=list)
     confidence: int = 100
+    base_score: int
+    contributions: list[ScoreContribution] = Field(default_factory=list)
 
 
 class ProductCategory(BaseModel):
@@ -71,6 +81,7 @@ class ProductScore(BaseModel):
     category: ProductCategory | None = None
     components: list[ScoreComponent] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    score_adjustments: list[ScoreContribution] = Field(default_factory=list)
 
 
 class ScoredSearchResult(BaseModel):

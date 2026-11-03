@@ -1,14 +1,29 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 
 from .categories import detect_category
 from .knowledge_base import load_knowledge_base
-from .models import Product, ProductScore, ScoredSearchResult, ScoreComponent, ScoreReason, SearchResult
+from .models import (
+    Product,
+    ProductScore,
+    ScoreComponent,
+    ScoreContribution,
+    ScoredSearchResult,
+    ScoreReason,
+    SearchResult,
+)
 from .nutrition import normalize_text
 from .supermarkets import fetch_product, search_products
 from .supermarkets.contract import require_evidence
 
+NUTRITION_BASE_SCORE = 60
+NUTRITION_MISSING_BASE_SCORE = 50
+INGREDIENT_BASE_SCORE = 62
+PROCESSING_MISSING_BASE_SCORE = 45
+MINERAL_FAT_BASE_SCORE = 58
+EVIDENCE_BASE_SCORE = 100
 
 COMPONENT_WEIGHTS = {
     "nutrition_profile": 0.30,
@@ -17,6 +32,36 @@ COMPONENT_WEIGHTS = {
     "mineral_fat_quality_profile": 0.15,
     "evidence_quality": 0.05,
 }
+
+
+@dataclass
+class _ComponentBreakdown:
+    base: int
+    contributions: list[ScoreContribution] = field(default_factory=list)
+
+
+def _format_amount(value: float) -> str:
+    return f"{value:g}"
+
+
+def _apply_contribution(
+    score: int,
+    breakdown: _ComponentBreakdown | None,
+    label: str,
+    delta: int,
+    detail: str,
+    rule_id: str | None = None,
+) -> int:
+    if breakdown is not None and delta != 0:
+        breakdown.contributions.append(
+            ScoreContribution(
+                label=label,
+                delta=delta,
+                detail=detail,
+                rule_id=rule_id,
+            )
+        )
+    return score + delta
 
 
 def _contains_any(text: str, terms: list[str]) -> list[str]:
@@ -87,7 +132,8 @@ def score_product(product: Product) -> ProductScore:
 
     components = _build_components(product, category.id, reasons)
     score = _clamp_score(sum(component.score * component.weight for component in components))
-    score = _apply_framework_caps(score, category.id, reasons)
+    score_adjustments: list[ScoreContribution] = []
+    score = _apply_framework_caps(score, category.id, reasons, score_adjustments)
     confidence = _component_by_id(components, "evidence_quality").score
     warnings = _build_warnings(product, category.confidence)
     band = _score_band(score)
@@ -101,6 +147,7 @@ def score_product(product: Product) -> ProductScore:
         confidence=confidence,
         category=category,
         components=components,
+        score_adjustments=score_adjustments,
         warnings=warnings,
     )
 
@@ -112,57 +159,83 @@ def _build_components(product: Product, category_id: str, reasons: list[ScoreRea
     nutrition_reasons = [r for r in reasons if r.component == "nutrition_profile"]
     fat_mineral_reasons = [r for r in reasons if r.component == "mineral_fat_quality_profile"]
 
-    processing_score, processing_reasons = _processing_profile_score(product, text)
+    nutrition_breakdown = _ComponentBreakdown(base=NUTRITION_BASE_SCORE)
+    ingredient_breakdown = _ComponentBreakdown(base=INGREDIENT_BASE_SCORE)
+    processing_breakdown = _ComponentBreakdown(base=PROCESSING_MISSING_BASE_SCORE)
+    mineral_fat_breakdown = _ComponentBreakdown(base=MINERAL_FAT_BASE_SCORE)
+    evidence_breakdown = _ComponentBreakdown(base=EVIDENCE_BASE_SCORE)
+
+    processing_score, processing_reasons = _processing_profile_score(
+        product, text, processing_breakdown
+    )
     components = [
         ScoreComponent(
             id="nutrition_profile",
             label="Nutrition profile",
-            score=_nutrition_profile_score(nutrition, category_id),
+            score=_nutrition_profile_score(nutrition, category_id, nutrition_breakdown),
+            base_score=nutrition_breakdown.base,
             weight=COMPONENT_WEIGHTS["nutrition_profile"],
             reasons=nutrition_reasons,
+            contributions=nutrition_breakdown.contributions,
             confidence=80 if nutrition else 25,
         ),
         ScoreComponent(
             id="ingredient_profile",
             label="Ingredient profile",
-            score=_ingredient_profile_score(category_id, ingredient_reasons),
+            score=_ingredient_profile_score(category_id, ingredient_reasons, ingredient_breakdown),
+            base_score=ingredient_breakdown.base,
             weight=COMPONENT_WEIGHTS["ingredient_profile"],
             reasons=ingredient_reasons,
+            contributions=ingredient_breakdown.contributions,
             confidence=90 if product.ingredients else 30,
         ),
         ScoreComponent(
             id="processing_profile",
             label="Processing profile",
             score=processing_score,
+            base_score=processing_breakdown.base,
             weight=COMPONENT_WEIGHTS["processing_profile"],
             reasons=processing_reasons,
+            contributions=processing_breakdown.contributions,
             confidence=85 if product.ingredients else 25,
         ),
         ScoreComponent(
             id="mineral_fat_quality_profile",
             label="Mineral and fat quality",
-            score=_mineral_fat_quality_score(nutrition, text, category_id, fat_mineral_reasons),
+            score=_mineral_fat_quality_score(
+                nutrition, text, category_id, fat_mineral_reasons, mineral_fat_breakdown
+            ),
+            base_score=mineral_fat_breakdown.base,
             weight=COMPONENT_WEIGHTS["mineral_fat_quality_profile"],
             reasons=fat_mineral_reasons,
+            contributions=mineral_fat_breakdown.contributions,
             confidence=75 if product.ingredients or nutrition else 25,
         ),
         ScoreComponent(
             id="evidence_quality",
             label="Evidence quality",
-            score=_evidence_quality_score(product),
+            score=_evidence_quality_score(product, evidence_breakdown),
+            base_score=evidence_breakdown.base,
             weight=COMPONENT_WEIGHTS["evidence_quality"],
             reasons=[],
+            contributions=evidence_breakdown.contributions,
             confidence=100,
         ),
     ]
     return components
 
 
-def _nutrition_profile_score(nutrition: dict[str, float], category_id: str) -> int:
+def _nutrition_profile_score(
+    nutrition: dict[str, float],
+    category_id: str,
+    breakdown: _ComponentBreakdown | None = None,
+) -> int:
     if not nutrition:
-        return 50
+        if breakdown is not None:
+            breakdown.base = NUTRITION_MISSING_BASE_SCORE
+        return NUTRITION_MISSING_BASE_SCORE
 
-    score = 60
+    score = NUTRITION_BASE_SCORE
     sugars = nutrition.get("sugars_g")
     protein = nutrition.get("protein_g")
     saturated_fat = nutrition.get("saturated_fat_g")
@@ -172,43 +245,184 @@ def _nutrition_profile_score(nutrition: dict[str, float], category_id: str) -> i
 
     if sugars is not None:
         if category_id in {"dairy_milk", "dairy_fermented", "dairy_dessert", "fruit_or_juice"}:
-            score += 6 if sugars >= 4 else 0
-            score -= 8 if sugars > 22 else 0
+            if sugars >= 4:
+                score = _apply_contribution(
+                    score,
+                    breakdown,
+                    "Favorable dairy or fruit sugar level",
+                    6,
+                    f"Sugars {_format_amount(sugars)} g/100 g meet the 4 g dairy/fruit minimum (+6).",
+                    "sugar_dairy_positive",
+                )
+            if sugars > 22:
+                score = _apply_contribution(
+                    score,
+                    breakdown,
+                    "Excess dairy or fruit sugar",
+                    -8,
+                    f"Sugars {_format_amount(sugars)} g/100 g exceed the 22 g dairy/fruit limit (-8).",
+                    "sugar_dairy_high_negative",
+                )
         else:
-            score -= 8 if sugars > 12 else 0
-            score -= 8 if sugars > 25 else 0
+            if sugars > 12:
+                score = _apply_contribution(
+                    score,
+                    breakdown,
+                    "High sugar content",
+                    -8,
+                    f"Sugars {_format_amount(sugars)} g/100 g exceed the 12 g general limit (-8).",
+                    "sugar_high_negative",
+                )
+            if sugars > 25:
+                score = _apply_contribution(
+                    score,
+                    breakdown,
+                    "Very high sugar content",
+                    -8,
+                    f"Sugars {_format_amount(sugars)} g/100 g exceed the 25 g upper limit (-8).",
+                    "sugar_very_high_negative",
+                )
     if protein is not None:
-        score += 8 if protein >= 8 else 4 if protein >= 3 else 0
+        if protein >= 8:
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "High protein content",
+                8,
+                f"Protein {_format_amount(protein)} g/100 g meets the 8 g high-protein threshold (+8).",
+                "protein_high_positive",
+            )
+        elif protein >= 3:
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "Meaningful protein content",
+                4,
+                f"Protein {_format_amount(protein)} g/100 g meets the 3 g protein threshold (+4).",
+                "protein_positive",
+            )
     if fiber is not None and fiber >= 3:
-        score += 3
-    if saturated_fat is not None and category_id not in {"cheese", "dairy_milk", "oil_or_fat"}:
-        score -= 8 if saturated_fat > 5 else 0
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Beneficial fiber content",
+            3,
+            f"Fiber {_format_amount(fiber)} g/100 g meets the 3 g beneficial-fiber threshold (+3).",
+            "fiber_positive",
+        )
+    if (
+        saturated_fat is not None
+        and saturated_fat > 5
+        and category_id not in {"cheese", "dairy_milk", "oil_or_fat"}
+    ):
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "High saturated fat",
+            -8,
+            f"Saturated fat {_format_amount(saturated_fat)} g/100 g exceeds the 5 g limit for category {category_id} (-8).",
+            "saturated_fat_high_negative",
+        )
     if salt is not None:
-        score -= 10 if salt > 1.5 else 4 if salt > 0.8 else 0
-    if calcium is not None and category_id.startswith("dairy"):
-        score += 8 if calcium >= 100 else 0
+        if salt > 1.5:
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "High salt content",
+                -10,
+                f"Salt {_format_amount(salt)} g/100 g exceeds the 1.5 g high-salt threshold (-10).",
+                "salt_high_negative",
+            )
+        elif salt > 0.8:
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "Moderate salt content",
+                -4,
+                f"Salt {_format_amount(salt)} g/100 g exceeds the 0.8 g salt threshold (-4).",
+                "salt_moderate_negative",
+            )
+    if calcium is not None and calcium >= 100 and category_id.startswith("dairy"):
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Favorable dairy calcium",
+            8,
+            f"Calcium {_format_amount(calcium)} mg/100 g meets the 100 mg dairy calcium threshold (+8).",
+            "calcium_dairy_positive",
+        )
 
     return _clamp_score(score)
 
 
-def _ingredient_profile_score(category_id: str, reasons: list[ScoreReason]) -> int:
-    score = 62
+def _ingredient_profile_score(
+    category_id: str,
+    reasons: list[ScoreReason],
+    breakdown: _ComponentBreakdown | None = None,
+) -> int:
+    score = INGREDIENT_BASE_SCORE
     if category_id in {"dairy_milk", "dairy_fermented", "cheese"}:
-        score += 8
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Dairy category bonus",
+            8,
+            f"Category {category_id} adds the 8 point dairy ingredient bonus (+8).",
+            "dairy_category_bonus",
+        )
     if category_id == "fruit_or_juice":
-        score += 6
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Fruit category bonus",
+            6,
+            f"Category {category_id} adds the 6 point fruit ingredient bonus (+6).",
+            "fruit_category_bonus",
+        )
+    has_major_negative = _has_major_negative(reasons)
     for reason in reasons:
-        multiplier = 0.65 if reason.rule_id == "fruit_sugar_positive" and _has_major_negative(reasons) else 1.0
-        score += round(reason.delta * multiplier)
+        multiplier = (
+            0.65
+            if reason.rule_id == "fruit_sugar_positive" and has_major_negative
+            else 1.0
+        )
+        applied = round(reason.delta * multiplier)
+        if applied == 0:
+            continue
+        matched = f" Matched: {', '.join(reason.matched_terms)}." if reason.matched_terms else ""
+        if multiplier != 1.0:
+            detail = (
+                f"{reason.label} rule delta {reason.delta:+d} scaled by {multiplier:g} "
+                f"because a major negative is present = {reason.delta * multiplier:g}, "
+                f"rounded to {applied:+d}.{matched}"
+            )
+        else:
+            detail = f"{reason.label} rule delta {reason.delta:+d} applied directly.{matched}"
+        score = _apply_contribution(
+            score,
+            breakdown,
+            reason.label,
+            applied,
+            detail,
+            reason.rule_id,
+        )
     return _clamp_score(score)
 
 
-def _processing_profile_score(product: Product, text: str) -> tuple[int, list[ScoreReason]]:
+def _processing_profile_score(
+    product: Product,
+    text: str,
+    breakdown: _ComponentBreakdown | None = None,
+) -> tuple[int, list[ScoreReason]]:
     if not product.ingredients:
-        return 45, []
+        if breakdown is not None:
+            breakdown.base = PROCESSING_MISSING_BASE_SCORE
+        return PROCESSING_MISSING_BASE_SCORE, []
 
     ingredient_count = len(product.ingredients)
     score = 92 if ingredient_count <= 2 else 78 if ingredient_count <= 6 else 60
+    if breakdown is not None:
+        breakdown.base = score
     reasons: list[ScoreReason] = []
     markers = {
         "modified_starch": ("Modified starch or maltodextrin", -14, ["almidon modificado", "maltodextrina"]),
@@ -221,7 +435,14 @@ def _processing_profile_score(product: Product, text: str) -> tuple[int, list[Sc
         matched = _contains_any(text, terms)
         if not matched:
             continue
-        score += delta
+        score = _apply_contribution(
+            score,
+            breakdown,
+            label,
+            delta,
+            f"{label} marker matched '{', '.join(matched)}' at ingredient count {ingredient_count} ({delta:+d}).",
+            rule_id,
+        )
         reasons.append(
             ScoreReason(
                 rule_id=rule_id,
@@ -235,7 +456,14 @@ def _processing_profile_score(product: Product, text: str) -> tuple[int, list[Sc
             )
         )
     if ingredient_count > 10:
-        score -= 10
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Long ingredient list",
+            -10,
+            f"Ingredient list has {ingredient_count} ingredients, above the 10 ingredient limit (-10).",
+            "long_ingredient_list",
+        )
         reasons.append(
             ScoreReason(
                 rule_id="long_ingredient_list",
@@ -255,38 +483,116 @@ def _mineral_fat_quality_score(
     text: str,
     category_id: str,
     reasons: list[ScoreReason],
+    breakdown: _ComponentBreakdown | None = None,
 ) -> int:
-    score = 58
+    score = MINERAL_FAT_BASE_SCORE
     compatible_fats = _contains_any(
         text,
         ["aceite de oliva", "mantequilla", "grasa lactea", "coco", "aceite de coco", "manteca de cacao"],
     )
     if compatible_fats:
-        score += 14 if category_id == "oil_or_fat" else 8
+        delta = 14 if category_id == "oil_or_fat" else 8
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Compatible fat source",
+            delta,
+            f"Compatible fat source matched '{', '.join(compatible_fats)}' in category {category_id} ({delta:+d}).",
+            "compatible_fat_positive",
+        )
     for reason in reasons:
-        score += reason.delta
+        matched = f" Matched: {', '.join(reason.matched_terms)}." if reason.matched_terms else ""
+        score = _apply_contribution(
+            score,
+            breakdown,
+            reason.label,
+            reason.delta,
+            f"{reason.label} rule delta {reason.delta:+d} applied.{matched}",
+            reason.rule_id,
+        )
     if nutrition.get("calcium_mg") and nutrition.get("phosphorus_mg"):
         calcium = nutrition["calcium_mg"]
         phosphorus = nutrition["phosphorus_mg"]
         if phosphorus > 0 and calcium / phosphorus >= 1:
-            score += 10
-    if category_id == "oil_or_fat" and _contains_any(text, ["girasol", "soja", "colza", "canola", "maiz"]):
-        score -= 18
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "Calcium-to-phosphorus ratio bonus",
+                10,
+                (
+                    f"Calcium {_format_amount(calcium)} mg/100 g divided by phosphorus "
+                    f"{_format_amount(phosphorus)} mg/100 g = {calcium / phosphorus:.2f}, "
+                    "at or above the 1.0 ratio threshold (+10)."
+                ),
+                "calcium_phosphorus_ratio_positive",
+            )
+    if category_id == "oil_or_fat":
+        seed_oils = _contains_any(text, ["girasol", "soja", "colza", "canola", "maiz"])
+        if seed_oils:
+            score = _apply_contribution(
+                score,
+                breakdown,
+                "Seed oil in oil category",
+                -18,
+                (
+                    f"Seed-oil source '{', '.join(seed_oils)}' in the oil_or_fat category "
+                    "adds the -18 oil-specific penalty."
+                ),
+                "seed_oil_oil_category_penalty",
+            )
     return _clamp_score(score)
 
 
-def _evidence_quality_score(product: Product) -> int:
-    score = 100
+def _evidence_quality_score(
+    product: Product,
+    breakdown: _ComponentBreakdown | None = None,
+) -> int:
+    score = EVIDENCE_BASE_SCORE
     if not product.ingredients:
-        score -= 35
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Missing ingredient evidence",
+            -35,
+            "Ingredients are absent, so ingredient evidence is missing (-35).",
+            "missing_ingredients",
+        )
     if not product.nutrition_per_100g:
-        score -= 25
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Missing nutrition evidence",
+            -25,
+            "Nutrition values are absent, so nutrition evidence is missing (-25).",
+            "missing_nutrition",
+        )
     if "ingredients" in product.missing_fields:
-        score -= 15
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Ingredients flagged missing",
+            -15,
+            "The ingredients field is flagged as missing (-15).",
+            "ingredients_missing_field",
+        )
     if "nutrition_per_100g" in product.missing_fields:
-        score -= 10
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Nutrition flagged missing",
+            -10,
+            "The nutrition_per_100g field is flagged as missing (-10).",
+            "nutrition_missing_field",
+        )
     if product.ingredient_source is None and product.ingredients:
-        score -= 5
+        score = _apply_contribution(
+            score,
+            breakdown,
+            "Missing ingredient source",
+            -5,
+            "Ingredients are present but no ingredient source is recorded (-5).",
+            "missing_ingredient_source",
+        )
     return _clamp_score(score)
 
 
@@ -301,9 +607,29 @@ def _build_warnings(product: Product, category_confidence: int) -> list[str]:
     return warnings
 
 
-def _apply_framework_caps(score: int, category_id: str, reasons: list[ScoreReason]) -> int:
+def _apply_framework_caps(
+    score: int,
+    category_id: str,
+    reasons: list[ScoreReason],
+    adjustments: list[ScoreContribution] | None = None,
+) -> int:
     if any(reason.rule_id == "seed_oils_negative" for reason in reasons):
-        return min(score, 20 if category_id == "oil_or_fat" else 42)
+        limit = 20 if category_id == "oil_or_fat" else 42
+        capped_score = min(score, limit)
+        if adjustments is not None:
+            adjustments.append(
+                ScoreContribution(
+                    label="Seed-oil framework cap",
+                    delta=capped_score - score,
+                    detail=(
+                        f"Seed-oil framework cap of {limit} applied: "
+                        f"score {score} became {capped_score} ({capped_score - score:+d})."
+                    ),
+                    kind="cap",
+                    rule_id="seed_oils_negative",
+                )
+            )
+        return capped_score
     return score
 
 
