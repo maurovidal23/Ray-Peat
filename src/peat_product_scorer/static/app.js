@@ -37,6 +37,54 @@ const examples = [
   },
 ];
 
+const EXPLANATIONS = {
+  "nutrition-profile": {
+    label: "Nutrition profile",
+    text: "Compares sugars, protein, fat, salt and related nutrient values with the Ray Peat-inspired thresholds.",
+  },
+  "ingredient-profile": {
+    label: "Ingredient profile",
+    text: "Applies ingredient rules such as dairy, fruit, gelatin, seed oils, soy, gums, phosphates and fortified iron.",
+  },
+  "processing-profile": {
+    label: "Processing profile",
+    text: "Scores how heavily the product is processed, using ingredient count and processing markers in the ingredient list.",
+  },
+  "mineral-fat": {
+    label: "Mineral and fat quality",
+    text: "Weighs calcium and phosphorus balance plus the quality and context of the product's fat profile.",
+  },
+  "evidence-quality": {
+    label: "Evidence quality",
+    text: "Measures how complete and trustworthy the ingredient and nutrition evidence is before the product can be scored.",
+  },
+  weight: {
+    label: "Weight",
+    text: "The share of the overall score contributed by this component. Weights add up to 100% across all components.",
+  },
+  band: {
+    label: "Band",
+    text: "The plain-language range for the final score, from strong fit through reasonable, mixed, weak and avoid.",
+  },
+  confidence: {
+    label: "Confidence",
+    text: "How much structured evidence supports the result. Lower confidence means more of the product data was missing.",
+  },
+};
+
+const EXPLANATION_ALIASES = {
+  "nutrition-profile": "nutrition-profile",
+  "ingredient-profile": "ingredient-profile",
+  "processing-profile": "processing-profile",
+  "mineral-fat-quality-profile": "mineral-fat",
+  "mineral-and-fat-quality": "mineral-fat",
+  "mineral-fat": "mineral-fat",
+  "evidence-quality": "evidence-quality",
+  weight: "weight",
+  band: "band",
+  confidence: "confidence",
+};
+
 const els = {
   serviceStatus: document.querySelector("#serviceStatus"),
   viewEyebrow: document.querySelector("#viewEyebrow"),
@@ -72,6 +120,7 @@ const els = {
   scoreBand: document.querySelector("#scoreBand"),
   productName: document.querySelector("#productName"),
   scoreComment: document.querySelector("#scoreComment"),
+  scoreError: document.querySelector("#scoreError"),
   productSource: document.querySelector("#productSource"),
   productBrand: document.querySelector("#productBrand"),
   scrapedAt: document.querySelector("#scrapedAt"),
@@ -208,6 +257,247 @@ function renderEmptyState(container, heading, detail) {
   emptyState.className = "empty-state best-empty";
   emptyState.append(textElement("h2", heading), textElement("p", detail));
   container.replaceChildren(emptyState);
+}
+
+function safeText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+}
+
+function safeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function explanationKey(value) {
+  const normalized = safeText(value)
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+  return EXPLANATION_ALIASES[normalized] || normalized;
+}
+
+function explanationFor(value) {
+  return EXPLANATIONS[explanationKey(value)] || null;
+}
+
+function formatWeight(value) {
+  const number = safeNumber(value);
+  if (number === null) return "Unknown weight";
+  return `${formatNumber(Number((number * 100).toFixed(1)))}% weight`;
+}
+
+function formatWeightMultiplier(value) {
+  const number = safeNumber(value);
+  return number === null ? "?" : formatNumber(number);
+}
+
+function formatConfidence(value) {
+  const number = safeNumber(value);
+  return number === null ? "Unknown confidence" : `${formatNumber(number)}/100 confidence`;
+}
+
+function formatComponentScore(value) {
+  const number = safeNumber(value);
+  return number === null ? "-" : formatNumber(number);
+}
+
+let explanationPopover = null;
+let activeExplanationTrigger = null;
+
+function ensureExplanationPopover() {
+  if (explanationPopover) return explanationPopover;
+  explanationPopover = document.createElement("div");
+  explanationPopover.id = "explanationPopover";
+  explanationPopover.className = "explanation-popover";
+  explanationPopover.setAttribute("role", "tooltip");
+  explanationPopover.setAttribute("aria-hidden", "true");
+  explanationPopover.hidden = true;
+  document.body.appendChild(explanationPopover);
+  return explanationPopover;
+}
+
+function renderExplanationContent(entry) {
+  const popover = ensureExplanationPopover();
+  popover.replaceChildren(
+    textElement("strong", entry.label, "explanation-popover-title"),
+    textElement("p", entry.text, "explanation-popover-text"),
+  );
+  return popover;
+}
+
+function positionExplanationPopover(trigger) {
+  const popover = ensureExplanationPopover();
+  const rect = trigger.getBoundingClientRect();
+  const margin = 12;
+  const gap = 8;
+  const popoverRect = popover.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - popoverRect.width / 2;
+  let top = rect.bottom + gap;
+  left = Math.max(margin, Math.min(left, window.innerWidth - popoverRect.width - margin));
+  if (top + popoverRect.height > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - popoverRect.height - gap);
+  }
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+}
+
+function openExplanation(trigger) {
+  if (!trigger || !trigger.dataset) return;
+  const entry = explanationFor(trigger.dataset.explain);
+  if (!entry) return;
+  if (activeExplanationTrigger && activeExplanationTrigger !== trigger) {
+    activeExplanationTrigger.removeAttribute("aria-describedby");
+  }
+  const popover = renderExplanationContent(entry);
+  activeExplanationTrigger = trigger;
+  trigger.setAttribute("aria-describedby", popover.id);
+  popover.hidden = false;
+  popover.setAttribute("aria-hidden", "false");
+  positionExplanationPopover(trigger);
+}
+
+function closeExplanation(trigger = null) {
+  if (trigger && activeExplanationTrigger !== trigger) return;
+  if (activeExplanationTrigger) {
+    activeExplanationTrigger.removeAttribute("aria-describedby");
+  }
+  activeExplanationTrigger = null;
+  if (!explanationPopover) return;
+  explanationPopover.hidden = true;
+  explanationPopover.setAttribute("aria-hidden", "true");
+}
+
+function explanationTriggerFromEvent(event) {
+  const target = event.target;
+  if (!target || typeof target.closest !== "function") return null;
+  if (target.closest(".component-breakdown")) return null;
+  return target.closest("[data-explain]");
+}
+
+function bindExplanationEvents() {
+  document.addEventListener("mouseover", (event) => {
+    const trigger = explanationTriggerFromEvent(event);
+    if (trigger && trigger !== activeExplanationTrigger) openExplanation(trigger);
+  });
+  document.addEventListener("mouseout", (event) => {
+    const trigger = explanationTriggerFromEvent(event);
+    if (!trigger) return;
+    const next = event.relatedTarget;
+    if (next && typeof trigger.contains === "function" && trigger.contains(next)) return;
+    closeExplanation(trigger);
+  });
+  document.addEventListener("focusin", (event) => {
+    const trigger = explanationTriggerFromEvent(event);
+    if (trigger) openExplanation(trigger);
+  });
+  document.addEventListener("focusout", (event) => {
+    const trigger = explanationTriggerFromEvent(event);
+    if (trigger) closeExplanation(trigger);
+  });
+  document.addEventListener("click", (event) => {
+    const trigger = explanationTriggerFromEvent(event);
+    if (!trigger) return;
+    if (activeExplanationTrigger === trigger && !explanationPopover?.hidden) {
+      closeExplanation(trigger);
+    } else {
+      openExplanation(trigger);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeExplanation();
+  });
+  document.addEventListener("mouseleave", () => closeExplanation());
+  window.addEventListener("resize", () => {
+    if (activeExplanationTrigger) positionExplanationPopover(activeExplanationTrigger);
+  });
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (activeExplanationTrigger) positionExplanationPopover(activeExplanationTrigger);
+    },
+    { passive: true },
+  );
+}
+
+function contributionsFor(component) {
+  const raw = component?.contributions;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const valid = raw.every(
+    (entry) => entry && typeof entry === "object" && !Array.isArray(entry),
+  );
+  return valid ? raw : [];
+}
+
+let breakdownSequence = 0;
+
+function buildContributionBreakdown(component) {
+  const contributions = contributionsFor(component);
+  if (!contributions.length) return null;
+
+  breakdownSequence += 1;
+  const panelId = `component-breakdown-${breakdownSequence}`;
+  const section = document.createElement("section");
+  section.className = "component-breakdown";
+
+  const toggle = textElement("button", "Show scoring arithmetic", "breakdown-toggle");
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", panelId);
+
+  const panel = document.createElement("div");
+  panel.id = panelId;
+  panel.className = "breakdown-panel";
+  panel.hidden = true;
+
+  panel.appendChild(
+    textElement(
+      "p",
+      `Base score: ${formatComponentScore(component?.base_score)}`,
+      "breakdown-base",
+    ),
+  );
+
+  contributions.forEach((contribution) => {
+    const row = document.createElement("div");
+    row.className = "breakdown-entry";
+    const delta = safeNumber(contribution?.delta);
+    const deltaText = delta === null ? "±0" : formatDelta(delta);
+    const deltaClass = delta === null || delta >= 0 ? "positive" : "negative";
+    const detail = document.createElement("div");
+    detail.append(
+      textElement("strong", safeText(contribution?.label, "Adjustment")),
+      textElement("p", safeText(contribution?.detail, "No detail provided.")),
+    );
+    row.append(textElement("span", deltaText, `delta ${deltaClass}`), detail);
+    panel.appendChild(row);
+  });
+
+  const score = safeNumber(component?.score);
+  const weight = safeNumber(component?.weight);
+  const weightedEffect =
+    score === null || weight === null ? "?" : formatNumber(Number((score * weight).toFixed(2)));
+  panel.appendChild(
+    textElement(
+      "p",
+      `Weighted effect: ${formatComponentScore(component?.score)} × ${formatWeightMultiplier(component?.weight)} = ${weightedEffect}`,
+      "breakdown-effect",
+    ),
+  );
+
+  toggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    panel.hidden = expanded;
+    toggle.textContent = expanded ? "Show scoring arithmetic" : "Hide scoring arithmetic";
+  });
+
+  section.append(toggle, panel);
+  return section;
 }
 
 function renderPresetSearches() {
@@ -556,23 +846,38 @@ async function parseJsonResponse(response) {
   }
 }
 
+function hasScoreValue(value) {
+  return safeNumber(value) !== null;
+}
+
 function renderResult(result) {
-  const product = result.product;
+  const product = result.product || {};
   els.emptyState.classList.add("hidden");
   els.resultView.classList.remove("hidden");
+  els.scoreError.classList.add("hidden");
+  els.scoreError.textContent = "";
+
+  if (!hasScoreValue(result.score)) {
+    els.scoreComment.textContent = "Insufficient evidence to score";
+    renderInsufficientEvidence(result, product);
+    return;
+  }
 
   els.scoreGauge.style.setProperty("--score", result.score);
   els.scoreGauge.style.setProperty("--score-color", scoreColor(result.score));
   els.scoreValue.textContent = result.score;
-  els.scoreBand.textContent = result.band;
-  els.scoreBand.className = `band ${bandClass(result.band)}`;
+  els.scoreBand.textContent = safeText(result.band, "Unknown band");
+  els.scoreBand.className = `band ${bandClass(safeText(result.band, "mixed"))}`;
   els.productName.textContent = displayProductName(product, null);
-  els.scoreComment.textContent = result.comment;
+  els.scoreComment.textContent = safeText(result.comment, "");
   els.productSource.textContent = product.source || "-";
   els.productBrand.textContent = product.brand || "-";
   els.scrapedAt.textContent = formatDate(product.scraped_at);
   els.productCategory.textContent = result.category?.label || "-";
-  els.scoreConfidence.textContent = result.confidence === undefined ? "-" : `${result.confidence}/100`;
+  els.scoreConfidence.textContent =
+    result.confidence === undefined || result.confidence === null
+      ? "-"
+      : `${formatComponentScore(result.confidence)}/100`;
 
   renderComponents(result.components || [], result.warnings || []);
   renderReasons(result.reasons || []);
@@ -580,11 +885,47 @@ function renderResult(result) {
   renderIngredients(product);
 }
 
+function renderInsufficientEvidence(result, product) {
+  const providerError =
+    result.error ||
+    result.detail ||
+    result.provider_error ||
+    result.message ||
+    "The provider did not return enough ingredient and nutrition evidence.";
+
+  els.scoreGauge.style.setProperty("--score", 0);
+  els.scoreGauge.style.setProperty("--score-color", "#d9ded9");
+  els.scoreValue.textContent = "";
+  els.scoreBand.textContent = "No score";
+  els.scoreBand.className = "band unscored";
+  els.productName.textContent = displayProductName(product, null);
+  els.scoreComment.textContent = "Insufficient evidence to score";
+  els.scoreError.textContent = safeText(providerError, "The provider did not return a score.");
+  els.scoreError.classList.remove("hidden");
+  els.productSource.textContent = product.source || "-";
+  els.productBrand.textContent = product.brand || "-";
+  els.scrapedAt.textContent = formatDate(product.scraped_at);
+  els.productCategory.textContent = result.category?.label || "-";
+  els.scoreConfidence.textContent = "-";
+
+  els.componentCount.textContent = "0 components";
+  els.componentList.replaceChildren();
+  els.warningList.replaceChildren();
+  els.reasonCount.textContent = "0 rules";
+  els.reasonsList.replaceChildren();
+  els.nutritionCount.textContent = "0 values";
+  els.nutritionList.replaceChildren();
+  els.ingredientsText.textContent = "No ingredients found.";
+  els.sourceLink.removeAttribute("href");
+  els.sourceLink.classList.add("hidden");
+}
+
 function bandClass(band) {
-  if (band.includes("strong")) return "strong";
-  if (band.includes("reasonable")) return "reasonable";
-  if (band.includes("weak")) return "weak";
-  if (band.includes("avoid")) return "avoid";
+  const value = safeText(band, "").toLowerCase();
+  if (value.includes("strong")) return "strong";
+  if (value.includes("reasonable")) return "reasonable";
+  if (value.includes("weak")) return "weak";
+  if (value.includes("avoid")) return "avoid";
   return "mixed";
 }
 
@@ -594,16 +935,38 @@ function renderComponents(components, warnings) {
   components.forEach((component) => {
     const row = document.createElement("div");
     row.className = "component-row";
+    row.dataset.explain = explanationKey(component?.id || component?.label);
+    row.tabIndex = 0;
+
     const summary = document.createElement("div");
-    summary.append(
-      textElement("strong", component.label),
-      textElement("span", `${Math.round(Number(component.weight) * 100)}% weight`),
+    summary.className = "component-summary";
+    const weight = textElement("span", formatWeight(component?.weight), "component-definition");
+    weight.dataset.explain = "weight";
+    weight.tabIndex = 0;
+    const confidence = textElement(
+      "span",
+      formatConfidence(component?.confidence),
+      "component-definition",
     );
+    confidence.dataset.explain = "confidence";
+    confidence.tabIndex = 0;
+    summary.append(
+      textElement("strong", safeText(component?.label, "Unknown component")),
+      weight,
+      confidence,
+    );
+
     const meter = document.createElement("meter");
     meter.min = 0;
     meter.max = 100;
-    meter.value = Math.max(0, Math.min(100, Number(component.score) || 0));
-    row.append(summary, meter, textElement("b", component.score));
+    meter.value = Math.max(0, Math.min(100, safeNumber(component?.score) ?? 0));
+    row.append(summary, meter, textElement("b", formatComponentScore(component?.score)));
+
+    if (contributionsFor(component).length) {
+      const breakdown = buildContributionBreakdown(component);
+      if (breakdown) row.appendChild(breakdown);
+    }
+
     els.componentList.appendChild(row);
   });
 
@@ -674,7 +1037,9 @@ function isHttpUrl(value) {
 }
 
 function formatDelta(delta) {
-  return delta > 0 ? `+${delta}` : `${delta}`;
+  const number = safeNumber(delta);
+  if (number === null) return "±0";
+  return number > 0 ? `+${formatNumber(number)}` : formatNumber(number);
 }
 
 function scoreColor(score) {
@@ -771,7 +1136,7 @@ async function submitBestProducts(event) {
     const results = await enrichDiaSearchScores(data.results || []);
     renderBestProducts(results);
     const total = data.total || results.length;
-    const scoredCount = results.filter((item) => item.score).length;
+    const scoredCount = results.filter((item) => hasScoreValue(item.score?.score)).length;
     const providerLabel = provider === "all" ? "all providers" : provider;
     if (!total && provider === "all") {
       setBestProductsMessage(`No products found for "${query}". Try a broader search term.`, true);
@@ -827,8 +1192,10 @@ function unscoredMessage(error) {
 }
 
 function renderBestProducts(results) {
-  const scoredResults = results.filter((item) => item.score).sort((a, b) => b.score.score - a.score.score);
-  const unscoredResults = results.filter((item) => !item.score);
+  const scoredResults = results
+    .filter((item) => hasScoreValue(item.score?.score))
+    .sort((a, b) => (safeNumber(b.score?.score) ?? 0) - (safeNumber(a.score?.score) ?? 0));
+  const unscoredResults = results.filter((item) => !hasScoreValue(item.score?.score));
   const orderedResults = [...scoredResults, ...unscoredResults];
   els.bestProductsList.replaceChildren();
   if (!orderedResults.length) {
@@ -842,19 +1209,26 @@ function renderBestProducts(results) {
 
   orderedResults.forEach((item, index) => {
     const score = item.score;
+    const scored = hasScoreValue(score?.score);
     const product = score?.product || {};
     const search = item.search || {};
     const card = document.createElement("article");
-    card.className = score ? "best-product-card" : "best-product-card unscored";
+    card.className = scored ? "best-product-card" : "best-product-card unscored";
 
     const scoreSummary = document.createElement("div");
-    scoreSummary.className = score ? "best-score" : "best-score unscored";
-    if (score) {
+    scoreSummary.className = scored ? "best-score" : "best-score unscored";
+    if (scored) {
       scoreSummary.style.setProperty("--score-color", scoreColor(score.score));
-      scoreSummary.append(textElement("strong", score.score), textElement("span", score.band));
+      const band = textElement("span", safeText(score.band, "Unknown band"));
+      band.dataset.explain = "band";
+      band.tabIndex = 0;
+      scoreSummary.append(textElement("strong", formatComponentScore(score.score)), band);
     } else {
-      scoreSummary.append(textElement("strong", "-"), textElement("span", "Not scored"));
+      scoreSummary.append(textElement("strong", "Insufficient evidence to score"));
     }
+    const cardScoringLink = textElement("a", "ⓘ How scoring works", "how-scoring-link how-scoring-link--card");
+    cardScoringLink.href = "/";
+    scoreSummary.appendChild(cardScoringLink);
 
     const productMeta = document.createElement("div");
     productMeta.className = "best-product-meta";
@@ -862,21 +1236,39 @@ function renderBestProducts(results) {
       textElement("span", product.source || search.source || "Source"),
       textElement("span", score?.category?.label || search.category || "Unknown"),
     );
-    if (score) {
-      productMeta.append(textElement("span", `${score.confidence}/100 confidence`));
+    if (scored) {
+      const confidence = textElement(
+        "span",
+        score.confidence === undefined || score.confidence === null
+          ? "Unknown confidence"
+          : `${formatComponentScore(score.confidence)}/100 confidence`,
+      );
+      confidence.dataset.explain = "confidence";
+      confidence.tabIndex = 0;
+      productMeta.append(confidence);
     }
 
     const productMain = document.createElement("div");
     productMain.className = "best-product-main";
     productMain.append(productMeta, textElement("h2", displayProductName(product, search)));
-    if (score) {
-      productMain.append(textElement("p", score.comment), componentChips(score.components || []));
+    if (scored) {
+      productMain.append(
+        textElement("p", safeText(score.comment, "")),
+        componentChips(score.components || []),
+      );
     } else {
-      productMain.append(textElement("p", unscoredMessage(item.error), "unscored-note"));
+      const providerError = safeText(
+        item.error,
+        "The provider did not return enough ingredient and nutrition evidence.",
+      );
+      productMain.append(
+        textElement("p", "Insufficient evidence to score", "unscored-note"),
+        textElement("p", providerError, "unscored-detail"),
+      );
     }
 
     card.append(
-      textElement("div", score ? `#${index + 1}` : "-", "rank-badge"),
+      textElement("div", scored ? `#${index + 1}` : "-", "rank-badge"),
       scoreSummary,
       productMain,
     );
@@ -903,15 +1295,53 @@ function displayProductName(product, search) {
 }
 
 function componentChips(components) {
+  const block = document.createElement("div");
+  block.className = "component-block";
+  const heading = document.createElement("div");
+  heading.className = "section-heading component-heading";
+  const title = textElement("h3", "Algorithm components");
+  const scoringLink = textElement("a", "ⓘ How scoring works", "how-scoring-link");
+  scoringLink.href = "/";
+  heading.append(title, scoringLink);
+
   const strip = document.createElement("div");
   strip.className = "component-strip";
   components.forEach((component) => {
+    const label = safeText(component?.label, "Unknown component");
+    const group = document.createElement("div");
+    group.className = "component-chip-group";
+
     const chip = document.createElement("span");
-    chip.title = component.label === null || component.label === undefined ? "" : String(component.label);
-    chip.append(`${chip.title}: `, textElement("strong", component.score));
-    strip.appendChild(chip);
+    chip.className = "component-chip";
+    chip.dataset.explain = explanationKey(component?.id || label);
+    chip.tabIndex = 0;
+    chip.title = label;
+    chip.append(
+      textElement("span", label),
+      textElement("strong", formatComponentScore(component?.score)),
+      textElement("small", formatWeight(component?.weight)),
+      textElement("small", formatConfidence(component?.confidence)),
+    );
+
+    const weight = chip.querySelector("small");
+    if (weight) {
+      weight.dataset.explain = "weight";
+      weight.tabIndex = 0;
+    }
+    const confidence = chip.querySelectorAll("small")[1];
+    if (confidence) {
+      confidence.dataset.explain = "confidence";
+      confidence.tabIndex = 0;
+    }
+
+    group.appendChild(chip);
+    const breakdown = buildContributionBreakdown(component);
+    if (breakdown) group.appendChild(breakdown);
+    strip.appendChild(group);
   });
-  return strip;
+
+  block.append(heading, strip);
+  return block;
 }
 
 els.libraryViewButton.addEventListener("click", () => {
@@ -932,6 +1362,7 @@ window.addEventListener("popstate", () => {
   if (selectedArticleId) renderArticleDetail(selectedArticleId, selectedLanguage);
 });
 
+bindExplanationEvents();
 setView(currentView);
 renderPresetSearches();
 renderExamples();

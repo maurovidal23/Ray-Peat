@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=evidence-contract-49eb51e" />
+    <link rel="stylesheet" href="/static/styles.css?v=frontend-explainability-20261103" />
   </head>
   <body>
     <header class="topbar app-header">
@@ -88,6 +88,14 @@
         </section>
 
         <section id="bestProductsView" class="best-products-view hidden" aria-label="Best scored products">
+          <section class="best-info-panel" aria-label="Scoring guide">
+            <div class="section-heading">
+              <h3>Algorithm components</h3>
+              <a class="how-scoring-link" href="/">ⓘ How scoring works</a>
+            </div>
+            <p>Hover, focus, or tap a component chip for a definition. Each scored card can also expand to show the base score and every adjustment behind it.</p>
+          </section>
+
           <section class="preset-panel" aria-label="Predefined product searches">
             <div class="section-heading"><h2>Predefined searches</h2><span>Fast browser</span></div>
             <div id="presetSearches" class="preset-searches"></div>
@@ -169,11 +177,15 @@
 
             <article id="resultView" class="result-view hidden">
               <div class="score-row">
-                <div id="scoreGauge" class="score-gauge" style="--score: 0"><span id="scoreValue">0</span><small>/100</small></div>
+                <div class="score-gauge-block">
+                  <div id="scoreGauge" class="score-gauge" style="--score: 0"><span id="scoreValue">0</span><small>/100</small></div>
+                  <a class="how-scoring-link" href="/">ⓘ How scoring works</a>
+                </div>
                 <div class="score-copy">
-                  <span id="scoreBand" class="band">mixed</span>
+                  <span id="scoreBand" class="band" data-explain="band" tabindex="0">mixed</span>
                   <h2 id="productName"></h2>
                   <p id="scoreComment"></p>
+                  <p id="scoreError" class="score-error hidden"></p>
                 </div>
               </div>
 
@@ -182,11 +194,11 @@
                 <div><span>Brand</span><strong id="productBrand">-</strong></div>
                 <div><span>Scraped</span><strong id="scrapedAt">-</strong></div>
                 <div><span>Category</span><strong id="productCategory">-</strong></div>
-                <div><span>Confidence</span><strong id="scoreConfidence">-</strong></div>
+                <div><span>Confidence</span><strong id="scoreConfidence" data-explain="confidence" tabindex="0">-</strong></div>
               </div>
 
               <section class="component-section">
-                <div class="section-heading"><h3>Algorithm components</h3><span id="componentCount">0 components</span></div>
+                <div class="section-heading"><h3>Algorithm components</h3><span id="componentCount">0 components</span><a class="how-scoring-link" href="/">ⓘ How scoring works</a></div>
                 <div id="componentList" class="component-list"></div>
                 <div id="warningList" class="warning-list"></div>
               </section>
@@ -212,6 +224,6 @@
       </section>
     </main>
 
-    <script src="/static/app.js?v=evidence-contract-49eb51e" type="module"></script>
+    <script src="/static/app.js?v=frontend-explainability-20261103" type="module"></script>
   </body>
 </html>
