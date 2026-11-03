@@ -266,11 +266,13 @@ class SupermarketStandardizationTests(unittest.TestCase):
             patch("peat_product_scorer.supermarkets.fetcher._search_dia", return_value=[]),
             patch("peat_product_scorer.supermarkets.fetcher._search_mercadona_categories", return_value=[]),
             patch("peat_product_scorer.supermarkets.fetcher._search_generic_provider", return_value=[]) as generic,
+            patch("peat_product_scorer.supermarkets.fetcher._search_openfoodfacts", return_value=[]) as openfoodfacts,
         ):
             search_products("leche", max_results=5, providers=["all"])
 
         queried_sources = {call.args[0] for call in generic.call_args_list}
         self.assertEqual(queried_sources, {"Alcampo", "Consum", "Eroski"})
+        openfoodfacts.assert_called_once_with("leche", 5)
 
     def test_default_provider_searches_run_concurrently(self) -> None:
         provider_count = len(RELIABLE_SEARCH_PROVIDERS)
@@ -286,7 +288,7 @@ class SupermarketStandardizationTests(unittest.TestCase):
             with lock:
                 calls += 1
                 first_wave = calls <= overlap
-            # Only the first worker wave waits: the fifth provider is queued
+            # Only the first worker wave waits: later providers are queued
             # behind the four-worker limit and cannot join that barrier.
             if first_wave:
                 started.wait()
@@ -302,6 +304,10 @@ class SupermarketStandardizationTests(unittest.TestCase):
             ),
             patch(
                 "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
+                side_effect=complete_together,
+            ),
+            patch(
+                "peat_product_scorer.supermarkets.fetcher._search_openfoodfacts",
                 side_effect=complete_together,
             ),
         ):

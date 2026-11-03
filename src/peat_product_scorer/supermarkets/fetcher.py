@@ -14,6 +14,8 @@ from ..models import Product, SearchResult
 from ..nutrition import normalize_nutrition, split_ingredients
 from .adapters import SUPPORTED_DOMAINS, supermarket_name_for_url
 from .contract import require_evidence, validate_provider_url
+from .openfoodfacts import OPENFOODFACTS_PROVIDER
+from .openfoodfacts import SOURCE as OPENFOODFACTS_SOURCE
 from .parser import parse_product_page
 
 USER_AGENT = (
@@ -34,7 +36,14 @@ GENERIC_SEARCH_PROVIDERS = (
 )
 
 
-RELIABLE_SEARCH_PROVIDERS = ("Mercadona", "DIA", "Alcampo", "Consum", "Eroski")
+RELIABLE_SEARCH_PROVIDERS = (
+    "Mercadona",
+    "DIA",
+    "Alcampo",
+    "Consum",
+    "Eroski",
+    OPENFOODFACTS_SOURCE,
+)
 MAX_RESULTS_PER_PROVIDER = 50
 MAX_CONCURRENT_SEARCHES = 4
 MAX_PRODUCT_REDIRECTS = 5
@@ -72,6 +81,15 @@ def search_products(
                 lambda source=source, template=template, domain=domain: _search_generic_provider(
                     source, template, domain, query, per_source
                 ),
+            )
+        )
+    if _provider_selected(OPENFOODFACTS_SOURCE, selected) and (
+        selected is not None or OPENFOODFACTS_SOURCE in default_sources
+    ):
+        searches.append(
+            (
+                OPENFOODFACTS_SOURCE,
+                lambda: _search_openfoodfacts(query, per_source),
             )
         )
 
@@ -129,6 +147,14 @@ def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]
 
 def search_mercadona_products(query: str, max_results: int = 10) -> list[SearchResult]:
     return list(_search_mercadona_categories(query, max_results))
+
+
+def _search_openfoodfacts(query: str, max_results: int) -> list[SearchResult]:
+    return OPENFOODFACTS_PROVIDER.search(query, max_results=max_results)
+
+
+def _fetch_openfoodfacts_product(url: str, timeout: int) -> Product:
+    return OPENFOODFACTS_PROVIDER.fetch(url, timeout=timeout)
 
 
 def _interleave_search_results(
@@ -424,6 +450,9 @@ def fetch_product(url: str, timeout: int = 20) -> Product:
 
 
 def _fetch_product(url: str, timeout: int = 20) -> Product:
+    if _is_openfoodfacts_url(url):
+        return _fetch_openfoodfacts_product(url, timeout=timeout)
+
     if "tienda.mercadona.es" in url:
         product_id = _mercadona_product_id(url)
         if product_id:
@@ -447,6 +476,11 @@ def _fetch_product(url: str, timeout: int = 20) -> Product:
     response.raise_for_status()
     source = supermarket_name_for_url(url)
     return parse_product_page(response.text, url=url, source=source)
+
+
+def _is_openfoodfacts_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    return host == "openfoodfacts.org" or host.endswith(".openfoodfacts.org")
 
 
 def _get_supported_product_url(
