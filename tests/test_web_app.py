@@ -315,7 +315,7 @@ class WebAppTests(unittest.TestCase):
         connectors = response.json()["connectors"]
         self.assertEqual(
             [connector["name"] for connector in connectors],
-            ["Mercadona", "DIA", "Alcampo", "Consum", "Eroski"],
+            ["Mercadona", "DIA", "Alcampo", "Consum", "Eroski", "Open Food Facts"],
         )
         self.assertNotIn("partial", response.text.lower())
 
@@ -326,7 +326,7 @@ class WebAppTests(unittest.TestCase):
         providers = response.json()["providers"]
         self.assertEqual(
             providers,
-            ["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski"],
+            ["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski", "Open Food Facts"],
         )
         for removed_provider in ("Bon Preu / Esclat", "Esclat", "Carrefour Espana", "El Corte Ingles", "Lidl"):
             self.assertNotIn(removed_provider, providers)
