@@ -23,8 +23,11 @@ ANTI_BOT_MARKERS = (
     "are you a robot",
     "bot detected",
     "request blocked",
-    "cloudflare",
-    "akamai",
+    # CDN vendor names alone are not blocking signals: healthy storefronts
+    # routinely load Cloudflare analytics and Akamai-hosted assets. Only match
+    # dedicated challenge machinery, alongside the explicit denial text above.
+    "/cdn-cgi/challenge-platform/",
+    "_cf_chl_opt",
 )
 
 # Guardrail keys are matched exactly. Nutrition normalization stores total

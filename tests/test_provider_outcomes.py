@@ -71,6 +71,47 @@ class _FakeResponse:
 
 
 class ProviderSearchOutcomeTests(unittest.TestCase):
+    def test_generic_provider_cdn_references_do_not_discard_products(self) -> None:
+        for cdn in (
+            "https://cdnjs.cloudflare.com/ajax/libs/example.js",
+            "https://static.cloudflareinsights.com/beacon.min.js",
+            "https://example.akamaized.net/assets/shop.js",
+            "https://www.akamai.com/assets/shop.js",
+        ):
+            with self.subTest(cdn=cdn), patch(
+                "peat_product_scorer.supermarkets.fetcher.requests.get",
+                return_value=_FakeResponse(text=(
+                    f'<html><script src="{cdn}"></script>'
+                    '<a href="/products/leche-entera/12345">Leche entera</a></html>'
+                )),
+            ):
+                outcome = _search_generic_provider(
+                    "Alcampo",
+                    "https://www.compraonline.alcampo.es/search?text={query}",
+                    "compraonline.alcampo.es", "leche", 5,
+                )
+                self.assertEqual(outcome.outcome, "ok")
+                self.assertEqual(len(outcome), 1)
+                self.assertIsNone(outcome.cause)
+
+    def test_generic_provider_cloudflare_challenge_is_blocked(self) -> None:
+        for challenge in (
+            '<script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script>',
+            '<script>window._cf_chl_opt = {};</script>',
+        ):
+            with self.subTest(challenge=challenge), patch(
+                "peat_product_scorer.supermarkets.fetcher.requests.get",
+                return_value=_FakeResponse(text=f"<html>{challenge}</html>"),
+            ):
+                outcome = _search_generic_provider(
+                    "Alcampo",
+                    "https://www.compraonline.alcampo.es/search?text={query}",
+                    "compraonline.alcampo.es", "leche", 5,
+                )
+                self.assertEqual(outcome.outcome, "blocked")
+                self.assertEqual(outcome.products, 0)
+                self.assertTrue(outcome.cause)
+
     def test_generic_provider_http_403_is_blocked_with_cause(self) -> None:
         with patch(
             "peat_product_scorer.supermarkets.fetcher.requests.get",
