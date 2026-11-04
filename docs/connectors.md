@@ -64,11 +64,13 @@ them into a deterministic per-provider `provider_status` summary:
 - `error`: another request or parsing failure. `cause` records the exception
   type and message.
 
-`cause` is only present for non-`ok` outcomes. Failed providers never contribute
-scored rows, but they remain visible in `provider_status` and in the Best
-Products status line. `/api/search` reports results returned by each provider
-search; `/api/search-score` reports the number of products that were fetched and
-passed the evidence guardrail.
+`cause` normally accompanies non-`ok` outcomes. An `ok` outcome may also carry a
+`cause` prefixed with `partial failure: ...` when some provider categories were
+blocked or errored while other categories still returned usable products. Failed
+providers never contribute scored rows, but they remain visible in
+`provider_status` and in the Best Products status line. `/api/search` reports
+results returned by each provider search; `/api/search-score` reports the number
+of products that were fetched and passed the evidence guardrail.
 
 ### Metadata-fallback scoring is removed
 

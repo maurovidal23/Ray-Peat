@@ -8,11 +8,8 @@ from urllib.parse import urlparse
 
 from ..models import (
     Product,
-    ProviderOutcome,
     ProviderOutcomeStatus,
     ProviderSearchOutcome,
-    SearchResult,
-    SearchResults,
 )
 
 BLOCKED_STATUS_CODES = frozenset({403, 429})
@@ -175,8 +172,8 @@ class ProductProvider(ABC):
         """Domains the provider is allowed to search and fetch."""
 
     @abstractmethod
-    def search(self, query: str, max_results: int = 10) -> list[SearchResult]:
-        """Return product search results for a query."""
+    def search(self, query: str, max_results: int = 10) -> ProviderSearchOutcome:
+        """Return product search results and their structured outcome for a query."""
 
     @abstractmethod
     def fetch(self, url: str, timeout: int = 20) -> Product:

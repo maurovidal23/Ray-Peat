@@ -845,14 +845,7 @@ def _merge_scored_provider_status(
             continue
         complete = complete_counts.get(key, 0)
         if complete:
-            merged.append(ProviderOutcome(original.provider, "ok", complete))
+            merged.append(ProviderOutcome(original.provider, "ok", complete, original.cause))
         else:
-            merged.append(
-                ProviderOutcome(
-                    original.provider,
-                    "empty",
-                    0,
-                    original.cause if original.outcome == "empty" else None,
-                )
-            )
+            merged.append(ProviderOutcome(original.provider, "empty", 0, original.cause))
     return merged

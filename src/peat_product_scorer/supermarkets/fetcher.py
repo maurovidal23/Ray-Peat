@@ -374,13 +374,16 @@ def _search_dia(query: str, max_results: int) -> ProviderSearchOutcome:
         api_outcome = _as_provider_outcome("DIA", _search_dia_api(query, max_results))
     except Exception as exc:
         api_outcome = _failure_outcome("DIA", exc)
-    if api_outcome:
+    if api_outcome.outcome == "ok":
         return api_outcome
     try:
         page_outcome = _as_provider_outcome("DIA", _search_dia_page_context(query, max_results))
     except Exception as exc:
         page_outcome = _failure_outcome("DIA", exc)
-    if page_outcome:
+    # A page fallback that parsed successfully is authoritative even when it
+    # found zero matches: the API leg failing should not mask a healthy page as
+    # "blocked" or "error".
+    if page_outcome.outcome in {"ok", "empty"}:
         return page_outcome
     return _combine_outcomes("DIA", (api_outcome, page_outcome))
 
@@ -598,15 +601,26 @@ def _search_mercadona_categories(query: str, max_results: int) -> ProviderSearch
                         )
                     )
     if results:
+        # Keep the usable products but surface degraded categories instead of
+        # silently dropping their failures as soon as one category succeeded.
         return ProviderSearchOutcome(
             results,
             provider="Mercadona",
             outcome="ok",
             products=len(results),
+            cause=_partial_failure_cause(failures),
         )
     if failures:
         return _combine_outcomes("Mercadona", tuple(failures))
     return ProviderSearchOutcome([], provider="Mercadona", outcome="empty", products=0)
+
+
+def _partial_failure_cause(failures: list[ProviderSearchOutcome]) -> str | None:
+    causes = [item.cause for item in failures if item.cause]
+    if not causes:
+        return None
+    unique = "; ".join(dict.fromkeys(causes))
+    return f"partial failure: {unique}"
 
 
 def _query_matches_category(query_lower: str, cat_name: str) -> bool:

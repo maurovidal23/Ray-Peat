@@ -189,8 +189,10 @@ empty providers are visible instead of looking like "no products found":
 page), or `error` (another exception). `products` counts products available to
 the scoring pipeline: search results for `/api/search`, and products that were
 fetched and passed the evidence guardrail for `/api/search-score`. A `cause` is
-included for non-`ok` outcomes. Failed providers are excluded from scored rows
-but always appear in the summary.
+included for non-`ok` outcomes; an `ok` outcome may also carry a `cause` when
+some provider categories failed but others still returned usable products
+(reported as `partial failure: ...`). Failed providers are excluded from scored
+rows but always appear in the summary.
 
 Product payloads returned by the scoring API expose standardized source quality fields:
 

@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +15,7 @@ from peat_product_scorer.models import (
 )
 from peat_product_scorer.scorer import search_and_score
 from peat_product_scorer.supermarkets.fetcher import (
+    _search_dia,
     _search_dia_api,
     _search_generic_provider,
     _search_mercadona_categories,
@@ -204,6 +206,106 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
 
         self.assertEqual(outcome.outcome, "blocked")
         self.assertIn("HTTP 403", outcome.cause or "")
+
+    def test_dia_page_fallback_empty_overrides_api_failure(self) -> None:
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher.requests.get",
+            side_effect=[
+                _FakeResponse(json_error=ValueError("bad API payload")),
+                _FakeResponse(text="<html><body>No products here</body></html>"),
+            ],
+        ):
+            outcome = _search_dia("leche", 5)
+
+        self.assertEqual(outcome.outcome, "empty")
+        self.assertEqual(outcome.products, 0)
+        self.assertEqual(list(outcome), [])
+        self.assertIsNone(outcome.cause)
+
+    def test_dia_page_fallback_products_override_api_failure(self) -> None:
+        page = {
+            "INITIAL_STATE": {
+                "header": {
+                    "searchData": {
+                        "search_items": [
+                            {
+                                "object_id": "1",
+                                "display_name": "Leche entera",
+                                "url": "/p/1",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        page_html = (
+            '<html><script id="vike_pageContext">'
+            + json.dumps(page)
+            + "</script></html>"
+        )
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher.requests.get",
+            side_effect=[
+                _FakeResponse(json_error=ValueError("bad API payload")),
+                _FakeResponse(text=page_html),
+            ],
+        ):
+            outcome = _search_dia("leche", 5)
+
+        self.assertEqual(outcome.outcome, "ok")
+        self.assertEqual(outcome.products, 1)
+        self.assertEqual(len(outcome), 1)
+
+    def test_mercadona_partial_category_failure_is_surfaced_with_products(self) -> None:
+        category_list = {
+            "results": [
+                {
+                    "name": "Lacteos",
+                    "categories": [
+                        {"id": 12, "name": "Leche"},
+                        {"id": 13, "name": "Leche entera"},
+                    ],
+                }
+            ]
+        }
+        category_ok = {
+            "categories": [
+                {
+                    "products": [
+                        {
+                            "id": 1,
+                            "display_name": "Leche entera",
+                            "share_url": "https://tienda.mercadona.es/product/1/leche",
+                            "price_instructions": {"bulk_price": 1.5},
+                        }
+                    ]
+                }
+            ]
+        }
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher.requests.get",
+            side_effect=[
+                _FakeResponse(payload=category_list),
+                _FakeResponse(payload=category_ok),
+                _FakeResponse(status_code=403),
+            ],
+        ):
+            outcome = _search_mercadona_categories("leche", 5)
+
+        self.assertEqual(outcome.outcome, "ok")
+        self.assertEqual(outcome.products, 1)
+        self.assertEqual(len(outcome), 1)
+        self.assertIn("partial failure", outcome.cause or "")
+        self.assertIn("HTTP 403", outcome.cause or "")
+        self.assertEqual(
+            outcome.to_dict(),
+            {
+                "provider": "Mercadona",
+                "outcome": "ok",
+                "products": 1,
+                "cause": "partial failure: HTTP 403",
+            },
+        )
 
     def test_mercadona_category_failure_is_surfaced_when_empty(self) -> None:
         category_list = {

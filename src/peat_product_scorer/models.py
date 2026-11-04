@@ -14,8 +14,10 @@ class ProviderOutcome:
     """Structured outcome for one provider search.
 
     ``products`` is the number of products available to the scoring pipeline.
-    ``cause`` is only relevant for non-``ok`` outcomes (HTTP status, captcha or
-    anti-bot marker, or exception type and message).
+    ``cause`` explains non-``ok`` outcomes (HTTP status, captcha or anti-bot
+    marker, or exception type and message). An ``ok`` outcome may also carry a
+    cause to report partial degradation, such as some provider categories
+    failing while others still returned usable products.
     """
 
     provider: str
@@ -29,7 +31,7 @@ class ProviderOutcome:
             "outcome": self.outcome,
             "products": self.products,
         }
-        if self.outcome != "ok" and self.cause:
+        if self.cause:
             payload["cause"] = self.cause
         return payload
 
