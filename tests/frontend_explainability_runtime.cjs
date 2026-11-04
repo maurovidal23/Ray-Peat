@@ -125,3 +125,69 @@ test('best-products guardrail card contains provider text but no component chips
   assert.equal(main.children[3].textContent, 'Missing evidence <b>provider</b>');
   assert.equal(main.children.length, 4);
 });
+
+test('provider status summary is data-driven and tolerates an absent field', () => {
+  const { run } = setup();
+  assert.equal(run('providerStatusSummary(undefined, "all")'), '');
+  assert.equal(run('providerStatusSummary([], "all")'), '');
+  assert.equal(
+    run('providerStatusSummary([{provider: "DIA", outcome: "ok", products: 2}], "all")'),
+    '',
+  );
+  assert.equal(
+    run('providerStatusSummary([{provider: "Mercadona", outcome: "blocked", products: 0, cause: "HTTP 403"}], "Mercadona")'),
+    'Mercadona: blocked (HTTP 403)',
+  );
+  assert.equal(
+    run(`providerStatusSummary([
+      {provider: "DIA", outcome: "ok", products: 2},
+      {provider: "Mercadona", outcome: "blocked", products: 0, cause: "HTTP 403"},
+      {provider: "Alcampo", outcome: "empty", products: 0},
+    ], "all")`),
+    'Mercadona: blocked (HTTP 403); Alcampo: empty',
+  );
+});
+
+test('best-products message renders per-provider status when no products are scoreable', async () => {
+  const { context, node, run } = setup();
+  node('bestProductsQuery').value = 'leche';
+  node('bestProductsProvider').value = 'all';
+  node('bestProductsLimit').value = '10';
+  context.fetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({
+      total: 0,
+      results: [],
+      provider_status: [
+        { provider: 'Mercadona', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
+        { provider: 'DIA', outcome: 'empty', products: 0 },
+      ],
+    }),
+  });
+  await run('submitBestProducts({preventDefault() {}})');
+  assert.match(node('bestProductsMessage').textContent, /Mercadona: blocked \(HTTP 403\)/);
+  assert.match(node('bestProductsMessage').textContent, /DIA: empty/);
+});
+
+test('best-products message reports partial provider failure while results are shown', async () => {
+  const { context, node, run } = setup();
+  node('bestProductsQuery').value = 'leche';
+  node('bestProductsProvider').value = 'all';
+  node('bestProductsLimit').value = '10';
+  context.fetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({
+      total: 1,
+      results: [{ score: { score: 80, band: 'Good', product: { name: 'Leche entera' } }, search: { display_name: 'Leche entera' } }],
+      provider_status: [
+        { provider: 'DIA', outcome: 'ok', products: 1 },
+        { provider: 'Mercadona', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
+      ],
+    }),
+  });
+  await run('submitBestProducts({preventDefault() {}})');
+  assert.equal(node('bestProductsList').children.length, 1);
+  assert.match(node('bestProductsMessage').textContent, /Mercadona: blocked \(HTTP 403\)/);
+});

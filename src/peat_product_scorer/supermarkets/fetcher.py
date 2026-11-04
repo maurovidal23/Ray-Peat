@@ -10,10 +10,21 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from ..models import Product, SearchResult
+from ..models import (
+    Product,
+    ProviderOutcome,
+    ProviderSearchOutcome,
+    SearchResult,
+    SearchResults,
+)
 from ..nutrition import normalize_nutrition, split_ingredients
 from .adapters import SUPPORTED_DOMAINS, supermarket_name_for_url
-from .contract import require_evidence, validate_provider_url
+from .contract import (
+    blocked_cause_for_response,
+    classify_provider_failure,
+    require_evidence,
+    validate_provider_url,
+)
 from .openfoodfacts import OPENFOODFACTS_PROVIDER
 from .openfoodfacts import SOURCE as OPENFOODFACTS_SOURCE
 from .parser import parse_product_page
@@ -54,11 +65,11 @@ def search_products(
     query: str,
     max_results: int = 10,
     providers: list[str] | None = None,
-) -> list[SearchResult]:
+) -> SearchResults:
     query = _normalize_search_query(query)
     max_results = max(0, min(max_results, MAX_RESULTS_PER_PROVIDER))
     if not max_results:
-        return []
+        return SearchResults()
     per_source = max_results
     selected = _normalize_provider_filter(providers)
     # The default/"all" view intentionally uses only providers whose result links
@@ -93,15 +104,43 @@ def search_products(
             )
         )
 
-    provider_results: list[list[SearchResult]] = [[] for _ in searches]
+    provider_results: list[list[SearchResult]] = []
+    provider_status: list[ProviderOutcome] = []
     with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_SEARCHES, len(searches) or 1)) as executor:
         futures = [executor.submit(search) for _, search in searches]
-        for index, future in enumerate(futures):
+        for (provider, _), future in zip(searches, futures):
             try:
-                provider_results[index] = future.result()
-            except Exception:
-                provider_results[index] = []
-    return _interleave_search_results(provider_results, max_results=max_results)
+                outcome = _as_provider_outcome(provider, future.result())
+            except Exception as exc:
+                outcome = _failure_outcome(provider, exc)
+            provider_results.append(list(outcome))
+            provider_status.append(outcome.status())
+    return SearchResults(
+        _interleave_search_results(provider_results, max_results=max_results),
+        provider_status=provider_status,
+    )
+
+
+def _as_provider_outcome(provider: str, value: Any) -> ProviderSearchOutcome:
+    if isinstance(value, ProviderSearchOutcome):
+        return value
+    results = list(value or [])
+    return ProviderSearchOutcome(
+        results,
+        provider=provider,
+        outcome="ok" if results else "empty",
+        products=len(results),
+    )
+
+
+def _failure_outcome(
+    provider: str,
+    error: BaseException,
+    *,
+    response: object | None = None,
+) -> ProviderSearchOutcome:
+    outcome, cause = classify_provider_failure(error, response=response)
+    return ProviderSearchOutcome([], provider=provider, outcome=outcome, products=0, cause=cause)
 
 
 def _normalize_search_query(query: str) -> str:
@@ -141,16 +180,17 @@ def _provider_selected(source: str, selected: set[str] | None) -> bool:
     return normalized_source in selected
 
 
-def search_dia_products(query: str, max_results: int = 10) -> list[SearchResult]:
-    return list(_search_dia(query, max_results))
+def search_dia_products(query: str, max_results: int = 10) -> ProviderSearchOutcome:
+    return _search_dia(query, max_results)
 
 
-def search_mercadona_products(query: str, max_results: int = 10) -> list[SearchResult]:
-    return list(_search_mercadona_categories(query, max_results))
+def search_mercadona_products(query: str, max_results: int = 10) -> ProviderSearchOutcome:
+    return _search_mercadona_categories(query, max_results)
 
 
-def _search_openfoodfacts(query: str, max_results: int) -> list[SearchResult]:
-    return OPENFOODFACTS_PROVIDER.search(query, max_results=max_results)
+def _search_openfoodfacts(query: str, max_results: int) -> ProviderSearchOutcome:
+    outcome = OPENFOODFACTS_PROVIDER.search(query, max_results=max_results)
+    return _as_provider_outcome(OPENFOODFACTS_SOURCE, outcome)
 
 
 def _fetch_openfoodfacts_product(url: str, timeout: int) -> Product:
@@ -185,13 +225,28 @@ def _search_generic_provider(
     domain: str,
     query: str,
     max_results: int,
-) -> list[SearchResult]:
+) -> ProviderSearchOutcome:
     search_url = search_template.format(query=requests.utils.quote(query))
+    response = None
     try:
         response = requests.get(search_url, headers=HEADERS, timeout=15)
         response.raise_for_status()
-    except Exception:
-        return []
+    except Exception as exc:
+        return _failure_outcome(
+            source,
+            exc,
+            response=getattr(exc, "response", None) or response,
+        )
+
+    blocked_cause = blocked_cause_for_response(response)
+    if blocked_cause:
+        return ProviderSearchOutcome(
+            [],
+            provider=source,
+            outcome="blocked",
+            products=0,
+            cause=blocked_cause,
+        )
 
     soup = BeautifulSoup(response.text, "html.parser")
     query_terms = _search_terms(query)
@@ -228,7 +283,12 @@ def _search_generic_provider(
                 category=None,
             )
         )
-    return results
+    return ProviderSearchOutcome(
+        results,
+        provider=source,
+        outcome="ok" if results else "empty",
+        products=len(results),
+    )
 
 
 def _search_terms(query: str) -> list[str]:
@@ -309,14 +369,27 @@ def _product_id_from_url(url: str) -> str:
     return path.split("/")[-1] or url
 
 
-def _search_dia(query: str, max_results: int) -> list[SearchResult]:
-    api_results = _search_dia_api(query, max_results)
-    if api_results:
-        return api_results
-    return _search_dia_page_context(query, max_results)
+def _search_dia(query: str, max_results: int) -> ProviderSearchOutcome:
+    try:
+        api_outcome = _as_provider_outcome("DIA", _search_dia_api(query, max_results))
+    except Exception as exc:
+        api_outcome = _failure_outcome("DIA", exc)
+    if api_outcome.outcome == "ok":
+        return api_outcome
+    try:
+        page_outcome = _as_provider_outcome("DIA", _search_dia_page_context(query, max_results))
+    except Exception as exc:
+        page_outcome = _failure_outcome("DIA", exc)
+    # A page fallback that parsed successfully is authoritative even when it
+    # found zero matches: the API leg failing should not mask a healthy page as
+    # "blocked" or "error".
+    if page_outcome.outcome in {"ok", "empty"}:
+        return page_outcome
+    return _combine_outcomes("DIA", (api_outcome, page_outcome))
 
 
-def _search_dia_api(query: str, max_results: int) -> list[SearchResult]:
+def _search_dia_api(query: str, max_results: int) -> ProviderSearchOutcome:
+    response = None
     try:
         response = requests.get(
             f"{DIA_BASE}/api/v1/search-back/search",
@@ -325,23 +398,83 @@ def _search_dia_api(query: str, max_results: int) -> list[SearchResult]:
             timeout=15,
         )
         response.raise_for_status()
+        blocked_cause = blocked_cause_for_response(response)
+        if blocked_cause:
+            return ProviderSearchOutcome(
+                [],
+                provider="DIA",
+                outcome="blocked",
+                products=0,
+                cause=blocked_cause,
+            )
         payload = response.json()
-    except Exception:
-        return []
-    return _dia_search_results_from_items(query, payload.get("search_items") or [], max_results)
+        items = payload.get("search_items") or []
+    except Exception as exc:
+        return _failure_outcome(
+            "DIA",
+            exc,
+            response=getattr(exc, "response", None) or response,
+        )
+    results = _dia_search_results_from_items(query, items, max_results)
+    return ProviderSearchOutcome(
+        results,
+        provider="DIA",
+        outcome="ok" if results else "empty",
+        products=len(results),
+    )
 
 
-def _search_dia_page_context(query: str, max_results: int) -> list[SearchResult]:
+def _search_dia_page_context(query: str, max_results: int) -> ProviderSearchOutcome:
     search_url = f"{DIA_BASE}/search?q={requests.utils.quote(query)}"
+    response = None
     try:
         response = requests.get(search_url, headers=HEADERS, timeout=15)
         response.raise_for_status()
+        blocked_cause = blocked_cause_for_response(response)
+        if blocked_cause:
+            return ProviderSearchOutcome(
+                [],
+                provider="DIA",
+                outcome="blocked",
+                products=0,
+                cause=blocked_cause,
+            )
         soup = BeautifulSoup(response.text, "html.parser")
         context = _load_script_json(soup, "vike_pageContext")
         search_data = (((context or {}).get("INITIAL_STATE") or {}).get("header") or {}).get("searchData") or {}
-    except Exception:
-        return []
-    return _dia_search_results_from_items(query, search_data.get("search_items") or [], max_results)
+        items = search_data.get("search_items") or []
+    except Exception as exc:
+        return _failure_outcome(
+            "DIA",
+            exc,
+            response=getattr(exc, "response", None) or response,
+        )
+    results = _dia_search_results_from_items(query, items, max_results)
+    return ProviderSearchOutcome(
+        results,
+        provider="DIA",
+        outcome="ok" if results else "empty",
+        products=len(results),
+    )
+
+
+def _combine_outcomes(
+    provider: str,
+    outcomes: tuple[ProviderSearchOutcome, ...],
+) -> ProviderSearchOutcome:
+    failures = [item for item in outcomes if item.outcome in {"blocked", "error"}]
+    if failures:
+        strongest = "blocked" if any(item.outcome == "blocked" for item in failures) else "error"
+        selected = [item for item in failures if item.outcome == strongest]
+        causes = "; ".join(dict.fromkeys(item.cause for item in selected if item.cause))
+        return ProviderSearchOutcome(
+            [],
+            provider=provider,
+            outcome=strongest,
+            products=0,
+            cause=causes or None,
+        )
+    return ProviderSearchOutcome([], provider=provider, outcome="empty", products=0)
 
 
 def _dia_search_results_from_items(query: str, items: list[dict[str, Any]], max_results: int) -> list[SearchResult]:
@@ -372,17 +505,32 @@ def _dia_search_results_from_items(query: str, items: list[dict[str, Any]], max_
         )
     return results
 
-def _search_mercadona_categories(query: str, max_results: int) -> list[SearchResult]:
+def _search_mercadona_categories(query: str, max_results: int) -> ProviderSearchOutcome:
+    response = None
     try:
-        cat_resp = requests.get(f"{MERCADONA_BASE}/api/categories/", headers=HEADERS, timeout=15)
-        cat_resp.raise_for_status()
-        categories = cat_resp.json().get("results") or []
-    except Exception:
-        return []
+        response = requests.get(f"{MERCADONA_BASE}/api/categories/", headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        blocked_cause = blocked_cause_for_response(response)
+        if blocked_cause:
+            return ProviderSearchOutcome(
+                [],
+                provider="Mercadona",
+                outcome="blocked",
+                products=0,
+                cause=blocked_cause,
+            )
+        categories = response.json().get("results") or []
+    except Exception as exc:
+        return _failure_outcome(
+            "Mercadona",
+            exc,
+            response=getattr(exc, "response", None) or response,
+        )
 
     query_lower = query.lower()
     results: list[SearchResult] = []
     seen_ids: set[str] = set()
+    failures: list[ProviderSearchOutcome] = []
 
     for section in categories:
         for cat in section.get("categories") or []:
@@ -392,11 +540,35 @@ def _search_mercadona_categories(query: str, max_results: int) -> list[SearchRes
             cat_name = cat.get("name") or ""
             if not _query_matches_category(query_lower, cat_name):
                 continue
+            cat_response = None
             try:
-                cat_resp = requests.get(f"{MERCADONA_BASE}/api/categories/{cat_id}/", headers=HEADERS, timeout=15)
-                cat_resp.raise_for_status()
-                cat_data = cat_resp.json()
-            except Exception:
+                cat_response = requests.get(
+                    f"{MERCADONA_BASE}/api/categories/{cat_id}/",
+                    headers=HEADERS,
+                    timeout=15,
+                )
+                cat_response.raise_for_status()
+                blocked_cause = blocked_cause_for_response(cat_response)
+                if blocked_cause:
+                    failures.append(
+                        ProviderSearchOutcome(
+                            [],
+                            provider="Mercadona",
+                            outcome="blocked",
+                            products=0,
+                            cause=blocked_cause,
+                        )
+                    )
+                    continue
+                cat_data = cat_response.json()
+            except Exception as exc:
+                failures.append(
+                    _failure_outcome(
+                        "Mercadona",
+                        exc,
+                        response=getattr(exc, "response", None) or cat_response,
+                    )
+                )
                 continue
             sub_categories = cat_data.get("categories") or [cat_data]
             for sub in sub_categories:
@@ -428,7 +600,27 @@ def _search_mercadona_categories(query: str, max_results: int) -> list[SearchRes
                             category=section.get("name"),
                         )
                     )
-    return results
+    if results:
+        # Keep the usable products but surface degraded categories instead of
+        # silently dropping their failures as soon as one category succeeded.
+        return ProviderSearchOutcome(
+            results,
+            provider="Mercadona",
+            outcome="ok",
+            products=len(results),
+            cause=_partial_failure_cause(failures),
+        )
+    if failures:
+        return _combine_outcomes("Mercadona", tuple(failures))
+    return ProviderSearchOutcome([], provider="Mercadona", outcome="empty", products=0)
+
+
+def _partial_failure_cause(failures: list[ProviderSearchOutcome]) -> str | None:
+    causes = [item.cause for item in failures if item.cause]
+    if not causes:
+        return None
+    unique = "; ".join(dict.fromkeys(causes))
+    return f"partial failure: {unique}"
 
 
 def _query_matches_category(query_lower: str, cat_name: str) -> bool:
