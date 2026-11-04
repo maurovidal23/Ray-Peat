@@ -43,6 +43,33 @@ If a fetched product fails the evidence guardrail, the API returns an evidence
 error instead of a score. In search results, the row is kept visible with no
 `score` and an explanatory `error`.
 
+### Provider search outcomes
+
+Provider searches no longer swallow failures and return an empty list. Every
+provider search yields a structured outcome, and `search_products` aggregates
+them into a deterministic per-provider `provider_status` summary:
+
+```json
+[
+  {"provider": "DIA", "outcome": "ok", "products": 10},
+  {"provider": "Mercadona", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
+]
+```
+
+- `ok`: the provider returned products usable by the scoring pipeline.
+- `empty`: the provider responded but returned no products with complete
+  evidence. `products` is `0`.
+- `blocked`: HTTP `403`/`429` or a captcha/anti-bot marker was detected. `cause`
+  records the status or marker.
+- `error`: another request or parsing failure. `cause` records the exception
+  type and message.
+
+`cause` is only present for non-`ok` outcomes. Failed providers never contribute
+scored rows, but they remain visible in `provider_status` and in the Best
+Products status line. `/api/search` reports results returned by each provider
+search; `/api/search-score` reports the number of products that were fetched and
+passed the evidence guardrail.
+
 ### Metadata-fallback scoring is removed
 
 Earlier versions could score a search result from its title, category, price,

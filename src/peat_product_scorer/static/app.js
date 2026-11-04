@@ -1076,6 +1076,27 @@ function setBestProductsMessage(text, isError = false) {
   els.bestProductsMessage.classList.toggle("error", isError);
 }
 
+function providerStatusSummary(providerStatus, selectedProvider) {
+  if (!Array.isArray(providerStatus) || !providerStatus.length) return "";
+  const selectedKey = String(selectedProvider || "all").toLowerCase();
+  const relevant = providerStatus.filter((status) => {
+    if (!status || !status.provider) return false;
+    return selectedKey === "all" || String(status.provider).toLowerCase() === selectedKey;
+  });
+  const problems = relevant.filter((status) => (
+    status.outcome !== "ok" || !(Number(status.products) > 0)
+  ));
+  if (!problems.length) return "";
+  return problems
+    .map((status) => {
+      const provider = safeText(status.provider, "Provider");
+      const outcome = safeText(status.outcome, "unknown");
+      const cause = status.cause ? ` (${safeText(status.cause, "")})` : "";
+      return `${provider}: ${outcome}${cause}`;
+    })
+    .join("; ");
+}
+
 
 async function loadSearchProviders() {
   try {
@@ -1140,15 +1161,19 @@ async function submitBestProducts(event) {
     const total = data.total || results.length;
     const scoredCount = results.filter((item) => hasScoreValue(item.score?.score)).length;
     const providerLabel = provider === "all" ? "all providers" : provider;
+    const statusSummary = providerStatusSummary(data.provider_status, provider);
+    const statusDetail = statusSummary ? ` Provider status: ${statusSummary}.` : "";
     if (!total && provider === "all") {
-      setBestProductsMessage(`No products found for "${query}". Try a broader search term.`, true);
+      setBestProductsMessage(`No products found for "${query}".${statusDetail} Try a broader search term.`, true);
     } else if (!total) {
-      setBestProductsMessage(`No products returned for "${query}" in ${providerLabel}. The provider may be blocking server-side search or may not have matching products.`, true);
+      setBestProductsMessage(`No products returned for "${query}" in ${providerLabel}.${statusDetail}`, true);
     } else if (scoredCount < total) {
       const scoredDetail = scoredCount === 0
         ? "None had enough ingredient and nutrition data to score."
         : `${scoredCount} of ${total} had enough evidence to score.`;
-      setBestProductsMessage(`${total} products found for "${query}" in ${providerLabel}. ${scoredDetail}`);
+      setBestProductsMessage(`${total} products found for "${query}" in ${providerLabel}. ${scoredDetail}${statusDetail}`);
+    } else if (statusSummary) {
+      setBestProductsMessage(`${total} products scored for "${query}" in ${providerLabel}.${statusDetail}`);
     } else {
       setBestProductsMessage(`${total} products scored for "${query}" in ${providerLabel}.`);
     }

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 from . import __version__
-from .models import Product
+from .models import Product, ProviderOutcome
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
@@ -254,10 +254,12 @@ def search_endpoint(query: SearchQuery) -> dict[str, Any]:
         "provider": query.provider or "all",
         "total": len(results),
         "results": [r.model_dump(mode="json") for r in results],
+        "provider_status": _provider_status_payload(results),
     }
 
 
 @app.post("/api/search-score")
+@app.post("/api/search-and-score", include_in_schema=False)
 def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
     with _search_request_slot():
         scored = search_and_score(
@@ -271,7 +273,42 @@ def search_and_score_endpoint(query: SearchQuery) -> dict[str, Any]:
         "provider": query.provider or "all",
         "total": len(scored),
         "results": [s.model_dump(mode="json", exclude_none=True) for s in scored],
+        "provider_status": _provider_status_payload(scored),
     }
+
+
+def _provider_status_payload(results: object) -> list[dict[str, Any]]:
+    statuses = getattr(results, "provider_status", None) or []
+    payload: list[dict[str, Any]] = []
+    for status in statuses:
+        if isinstance(status, ProviderOutcome):
+            payload.append(status.to_dict())
+        elif isinstance(status, dict):
+            payload.append(status)
+        elif hasattr(status, "to_dict"):
+            payload.append(status.to_dict())
+    if payload:
+        return payload
+
+    # Backward compatible fallback for callers that still return a plain list.
+    order: list[str] = []
+    counts: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for result in list(results or []):
+        search = getattr(result, "search", None)
+        source = getattr(search, "source", None) or getattr(result, "source", None)
+        if not source:
+            continue
+        key = source.lower()
+        if key not in counts:
+            order.append(key)
+            counts[key] = 0
+            names[key] = source
+        counts[key] += 1
+    return [
+        ProviderOutcome(names[key], "ok", counts[key]).to_dict()
+        for key in order
+    ]
 
 
 @app.get("/api/articles")
