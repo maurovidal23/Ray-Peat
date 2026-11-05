@@ -4,9 +4,18 @@ This document describes the connectors that ship with Ray Peat Product Scorer,
 the strict contract they must satisfy, and the stores that were explored but
 removed because they could not meet that contract.
 
+> **Live audit (2026-11-04, rechecked 2026-11-05):** the current adapter registry
+> was audited against live provider responses. Only **Eroski** passed the
+> recheck. DIA is blocked by Akamai (HTTP 403), Open Food Facts search is
+> intermittent and returns query-irrelevant products, and Mercadona, Alcampo,
+> and Consum fail the evidence guardrail. DIA, Open Food Facts, Mercadona,
+> Alcampo, and Consum are flagged for removal in issue #16. The full status
+> table, evidence snippets, and keep/remove decision live in
+> [Provider audit](./provider_audit.md).
+
 ## Shared provider contract
 
-The connector layer applies one contract across all verified providers. The
+The connector layer applies one contract across all registered providers. The
 `ProductProvider` abstraction defines:
 
 - `search(query, max_results)` returns `SearchResult` links and display metadata.
@@ -80,7 +89,7 @@ been removed. A score is produced only from a fetched product that satisfies the
 ingredients and nutrition guardrail. Tiles without fetchable evidence remain
 unscored and sort after scored products.
 
-## Verified provider contracts
+## Registered provider contracts
 
 | Provider | Allowed domains | Search | Fetch | Guardrail |
 | --- | --- | --- | --- | --- |
@@ -91,10 +100,12 @@ unscored and sort after scored products.
 | **Eroski** | `eroski.es` | Reads `https://supermercado.eroski.es/es/search/results/?q={query}` and extracts matching `/productdetail/` links. | Reads the server-rendered product detail page, its `Ingredientes` feature, and its nutrition feature. Falls back to the generic HTML/JSON-LD parser for missing product fields. | URL allowlist, redirect checks, plus shared ingredients and 4-of-6 nutrient evidence check. |
 | **Open Food Facts** | `openfoodfacts.org`, `world.openfoodfacts.org` | Calls `/api/v2/search` with `search_terms`, `countries_tags_en=spain`, a page size, and an explicit field list. Each candidate is converted and checked against the evidence guardrail before it is returned, so incomplete products are dropped from search results. | Reads `/api/v2/product/{code}` for URLs of the form `/product/{code}`. Ingredients come from `ingredients_text_es`; nutriments are mapped to normalized keys, including `carbohydrates_100g` → `carbohydrate_g` and `carbs_g`. | URL allowlist plus shared ingredients and 4-of-6 nutrient evidence check, applied before search results are exposed and again on fetch. |
 
-The default **All providers** search queries only these verified providers:
+The default **All providers** search queries only this registered set:
 **Mercadona**, **DIA**, **Alcampo**, **Consum**, **Eroski**, and **Open Food
-Facts**. Individual providers can be selected by name. Removed providers are not
-available, even when requested explicitly.
+Facts**. Individual registered providers can be selected by name. Removed
+providers are not available, even when requested explicitly. The contracts in
+the table describe the implemented adapters; they are not a live availability
+guarantee. See [Provider audit](./provider_audit.md) for the 2026-11-04 results.
 
 ## Removed providers
 
@@ -183,7 +194,7 @@ historical research context, not active connectors.
 
 ### Open Food Facts (world.openfoodfacts.org)
 - **Type**: Open collaborative database of food products from around the world.
-- **Status**: Active verified provider.
+- **Status**: Active registered provider. Live search is degraded upstream; see [Provider audit](./provider_audit.md).
 - **API**: REST API at `/api/v2/product/{code}` and `/api/v2/search`.
 - **Spanish coverage**: Contains many Spanish products with `ingredients_text_es`, `nutriments` (nutrition per 100 g), `brands`, and `categories_tags`.
 - **Guardrail behavior**: Search candidates are filtered through the evidence guardrail, and fetched products are validated before scoring. Anonymous requests are rate-limited, so a descriptive User-Agent is sent as required by Open Food Facts.

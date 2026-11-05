@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import requests
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -11,7 +12,11 @@ from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
-from .supermarkets.contract import ProviderEvidenceError
+from .supermarkets.contract import (
+    ProviderEvidenceError,
+    classify_provider_failure,
+)
+from .supermarkets.fetcher import available_search_providers
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -33,6 +38,13 @@ def score_url(url: str) -> None:
     except ProviderEvidenceError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except requests.RequestException as exc:
+        outcome, cause = classify_provider_failure(exc)
+        console.print(f"[red]Provider fetch failed ({outcome}): {cause}[/red]")
+        raise typer.Exit(code=1) from exc
     _print_score(score_product(product))
 
 
@@ -43,7 +55,7 @@ def search(
     max_results: int = typer.Option(10, help="Maximum results to return"),
 ) -> None:
     """Search for products across supermarkets."""
-    providers = None if source.lower() == "all" else [source]
+    providers = _selected_providers(source)
     results = search_products(query, max_results, providers=providers)
 
     if not results:
@@ -67,7 +79,7 @@ def search_score(
     source: str = typer.Option("all", help="Supermarket source/provider name, or all"),
 ) -> None:
     """Search for products, fetch details, and score each one."""
-    providers = None if source.lower() == "all" else [source]
+    providers = _selected_providers(source)
     scored = search_and_score(
         query,
         max_results=max_results,
@@ -103,6 +115,20 @@ def search_score(
         console.print(f"\n[bold]Top result:[/bold] {scored[0].score.product.name}")
         console.print(f"Score: [bold]{scored[0].score.score}/100[/bold] ({scored[0].score.band})")
         console.print(scored[0].score.comment)
+
+
+def _selected_providers(source: str) -> list[str] | None:
+    cleaned = source.strip()
+    if cleaned.lower() == "all":
+        return None
+    verified = {provider.lower() for provider in available_search_providers()}
+    if cleaned.lower() not in verified:
+        console.print(
+            f"[red]Provider '{cleaned}' is not a verified provider. "
+            "Removed providers are rejected by the evidence guardrail.[/red]"
+        )
+        raise typer.Exit(code=1)
+    return [cleaned]
 
 
 def _product_from_payload(payload: dict) -> Product:

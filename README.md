@@ -30,7 +30,7 @@ configurable knowledge base.
 
 ## Supermarket Connectors
 
-Verified native connectors:
+Registered native connectors:
 
 - Mercadona: product API at `https://tienda.mercadona.es/api/products/{id}`.
 - DIA: product API and server-rendered product JSON in `vike_pageContext`.
@@ -39,11 +39,21 @@ Verified native connectors:
 - Eroski: server-rendered product pages with ingredients and full nutrition lists.
 - Open Food Facts: API v2 product and search endpoints at `https://world.openfoodfacts.org/api/v2/`.
 
-The default **All providers** search queries only this verified set. Each
+The default **All providers** search queries only this registered set. Each
 provider supports search, fetch, and the shared URL/evidence guardrail described
 in `docs/connectors.md`. Non-conforming providers are not available, even when
 requested explicitly by name. That document also lists removed providers, the
 guardrail reasons for their removal, and exploration notes for blocked stores.
+
+A live end-to-end audit of every provider named in issue #15 is recorded in
+[`docs/provider_audit.md`](docs/provider_audit.md). The 2026-11-04 run was
+rechecked on 2026-11-05. Only Eroski passed the recheck: DIA is blocked by
+Akamai (HTTP 403), Open Food Facts search is intermittent and query-irrelevant,
+and Mercadona, Alcampo, and Consum fail the evidence guardrail. DIA, Open Food
+Facts, Mercadona, Alcampo, and Consum are flagged for removal in issue #16,
+even though their adapters are still registered in this checkout. The audit
+document includes the per-provider status table, command-output evidence, and
+the explicit keep/remove list.
 
 ## Quick Start
 
@@ -69,7 +79,7 @@ Evaluate a product JSON file:
 python -m peat_product_scorer score-file examples/sample_product.json
 ```
 
-Fetch and evaluate a live product URL from any verified provider:
+Fetch and evaluate a live product URL from any registered provider:
 
 ```bash
 python -m peat_product_scorer score-url "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
@@ -121,7 +131,7 @@ src/peat_product_scorer/
     index.html           Evaluator and best-products app shell
   supermarkets/
     contract.py          Shared provider, URL, and evidence guardrail contract
-    adapters.py          Verified provider registry
+    adapters.py          Provider registry
     fetcher.py           Search and fetch dispatch for supermarket providers
     openfoodfacts.py     Open Food Facts API v2 provider
     parser.py            Generic HTML/JSON-LD product page parser
@@ -129,6 +139,7 @@ data/knowledge/
   ray_peat_rules.yaml    Configurable rule knowledge base
 docs/
   connectors.md          Provider contracts, removed providers, exploration notes
+  provider_audit.md      Live provider-by-provider audit and keep/remove decision
 examples/
   sample_product.json
 tests/
@@ -201,7 +212,7 @@ Product payloads returned by the scoring API expose standardized source quality 
 - `ingredients`: normalized ingredient list.
 - `missing_fields`: reports `ingredients` and/or `nutrition_per_100g` when the source did not expose reliable data.
 
-Provider-fed payloads (`url` present, or `source` matching a verified provider)
+Provider-fed payloads (`url` present, or `source` matching a registered provider)
 must satisfy the evidence guardrail and otherwise return HTTP 422. Manual
 payloads are still scored, with warnings for missing evidence. Connectors should
 not fill `ingredients` from product names or generic descriptions. If a source
