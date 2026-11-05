@@ -15,15 +15,7 @@ class SupermarketAdapter:
 
 
 ADAPTERS = (
-    SupermarketAdapter("Mercadona", ("mercadona.es",)),
-    SupermarketAdapter("DIA", ("dia.es",)),
-    SupermarketAdapter("Alcampo", ("alcampo.es",)),
-    SupermarketAdapter("Consum", ("consum.es",)),
     SupermarketAdapter("Eroski", ("eroski.es",)),
-    SupermarketAdapter(
-        "Open Food Facts",
-        ("openfoodfacts.org", "world.openfoodfacts.org"),
-    ),
 )
 
 # Every domain recognized by at least one adapter, in adapter declaration order.

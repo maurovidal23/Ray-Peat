@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -25,8 +24,6 @@ from .contract import (
     require_evidence,
     validate_provider_url,
 )
-from .openfoodfacts import OPENFOODFACTS_PROVIDER
-from .openfoodfacts import SOURCE as OPENFOODFACTS_SOURCE
 from .parser import parse_product_page
 
 USER_AGENT = (
@@ -37,24 +34,13 @@ USER_AGENT = (
 
 
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "es-ES,es;q=0.9"}
-DIA_BASE = "https://www.dia.es"
-MERCADONA_BASE = "https://tienda.mercadona.es"
 
 GENERIC_SEARCH_PROVIDERS = (
-    ("Alcampo", "https://www.compraonline.alcampo.es/search?text={query}", "compraonline.alcampo.es"),
-    ("Consum", "https://tienda.consum.es/es/search?text={query}", "tienda.consum.es"),
     ("Eroski", "https://supermercado.eroski.es/es/search/results/?q={query}", "supermercado.eroski.es"),
 )
 
 
-RELIABLE_SEARCH_PROVIDERS = (
-    "Mercadona",
-    "DIA",
-    "Alcampo",
-    "Consum",
-    "Eroski",
-    OPENFOODFACTS_SOURCE,
-)
+RELIABLE_SEARCH_PROVIDERS = ("Eroski",)
 MAX_RESULTS_PER_PROVIDER = 50
 MAX_CONCURRENT_SEARCHES = 4
 MAX_PRODUCT_REDIRECTS = 5
@@ -73,14 +59,9 @@ def search_products(
     per_source = max_results
     selected = _normalize_provider_filter(providers)
     # The default/"all" view intentionally uses only providers whose result links
-    # are known to be fetchable. Less reliable providers remain available when
-    # explicitly requested by name.
+    # are known to be fetchable.
     default_sources = set(RELIABLE_SEARCH_PROVIDERS)
     searches: list[tuple[str, Any]] = []
-    if _provider_selected("DIA", selected) and (selected is not None or "DIA" in default_sources):
-        searches.append(("DIA", lambda: _search_dia(query, per_source)))
-    if _provider_selected("Mercadona", selected) and (selected is not None or "Mercadona" in default_sources):
-        searches.append(("Mercadona", lambda: _search_mercadona_categories(query, per_source)))
     for source, template, domain in GENERIC_SEARCH_PROVIDERS:
         if not _provider_selected(source, selected):
             continue
@@ -92,15 +73,6 @@ def search_products(
                 lambda source=source, template=template, domain=domain: _search_generic_provider(
                     source, template, domain, query, per_source
                 ),
-            )
-        )
-    if _provider_selected(OPENFOODFACTS_SOURCE, selected) and (
-        selected is not None or OPENFOODFACTS_SOURCE in default_sources
-    ):
-        searches.append(
-            (
-                OPENFOODFACTS_SOURCE,
-                lambda: _search_openfoodfacts(query, per_source),
             )
         )
 
@@ -178,23 +150,6 @@ def _provider_selected(source: str, selected: set[str] | None) -> bool:
         return True
     normalized_source = source.lower()
     return normalized_source in selected
-
-
-def search_dia_products(query: str, max_results: int = 10) -> ProviderSearchOutcome:
-    return _search_dia(query, max_results)
-
-
-def search_mercadona_products(query: str, max_results: int = 10) -> ProviderSearchOutcome:
-    return _search_mercadona_categories(query, max_results)
-
-
-def _search_openfoodfacts(query: str, max_results: int) -> ProviderSearchOutcome:
-    outcome = OPENFOODFACTS_PROVIDER.search(query, max_results=max_results)
-    return _as_provider_outcome(OPENFOODFACTS_SOURCE, outcome)
-
-
-def _fetch_openfoodfacts_product(url: str, timeout: int) -> Product:
-    return OPENFOODFACTS_PROVIDER.fetch(url, timeout=timeout)
 
 
 def _interleave_search_results(
@@ -307,8 +262,6 @@ def _is_productish_url(url: str, *, source: str) -> bool:
         return False
 
     source_markers = {
-        "Alcampo": ("/products/",),
-        "Consum": ("/p/",),
         "Eroski": ("/productdetail/",),
     }
     markers = source_markers.get(source) or ("/product", "/products", "/producto", "/productdetail", "/p/")
@@ -363,278 +316,10 @@ def _name_from_url(url: str) -> str:
 
 def _product_id_from_url(url: str) -> str:
     path = urlparse(url).path.rstrip("/")
-    match = re.search(r"(?:/p/|/productdetail/|/products?/)([^/?#]+)", path, flags=re.IGNORECASE)
+    match = re.search(r"(?:/productdetail/|/products?/)([^/?#]+)", path, flags=re.IGNORECASE)
     if match:
         return match.group(1)
     return path.split("/")[-1] or url
-
-
-def _search_dia(query: str, max_results: int) -> ProviderSearchOutcome:
-    try:
-        api_outcome = _as_provider_outcome("DIA", _search_dia_api(query, max_results))
-    except Exception as exc:
-        api_outcome = _failure_outcome("DIA", exc)
-    if api_outcome.outcome == "ok":
-        return api_outcome
-    try:
-        page_outcome = _as_provider_outcome("DIA", _search_dia_page_context(query, max_results))
-    except Exception as exc:
-        page_outcome = _failure_outcome("DIA", exc)
-    # A page fallback that parsed successfully is authoritative even when it
-    # found zero matches: the API leg failing should not mask a healthy page as
-    # "blocked" or "error".
-    if page_outcome.outcome in {"ok", "empty"}:
-        return page_outcome
-    return _combine_outcomes("DIA", (api_outcome, page_outcome))
-
-
-def _search_dia_api(query: str, max_results: int) -> ProviderSearchOutcome:
-    response = None
-    try:
-        response = requests.get(
-            f"{DIA_BASE}/api/v1/search-back/search",
-            params={"q": query},
-            headers={**HEADERS, "Accept": "application/json"},
-            timeout=15,
-        )
-        response.raise_for_status()
-        blocked_cause = blocked_cause_for_response(response)
-        if blocked_cause:
-            return ProviderSearchOutcome(
-                [],
-                provider="DIA",
-                outcome="blocked",
-                products=0,
-                cause=blocked_cause,
-            )
-        payload = response.json()
-        items = payload.get("search_items") or []
-    except Exception as exc:
-        return _failure_outcome(
-            "DIA",
-            exc,
-            response=getattr(exc, "response", None) or response,
-        )
-    results = _dia_search_results_from_items(query, items, max_results)
-    return ProviderSearchOutcome(
-        results,
-        provider="DIA",
-        outcome="ok" if results else "empty",
-        products=len(results),
-    )
-
-
-def _search_dia_page_context(query: str, max_results: int) -> ProviderSearchOutcome:
-    search_url = f"{DIA_BASE}/search?q={requests.utils.quote(query)}"
-    response = None
-    try:
-        response = requests.get(search_url, headers=HEADERS, timeout=15)
-        response.raise_for_status()
-        blocked_cause = blocked_cause_for_response(response)
-        if blocked_cause:
-            return ProviderSearchOutcome(
-                [],
-                provider="DIA",
-                outcome="blocked",
-                products=0,
-                cause=blocked_cause,
-            )
-        soup = BeautifulSoup(response.text, "html.parser")
-        context = _load_script_json(soup, "vike_pageContext")
-        search_data = (((context or {}).get("INITIAL_STATE") or {}).get("header") or {}).get("searchData") or {}
-        items = search_data.get("search_items") or []
-    except Exception as exc:
-        return _failure_outcome(
-            "DIA",
-            exc,
-            response=getattr(exc, "response", None) or response,
-        )
-    results = _dia_search_results_from_items(query, items, max_results)
-    return ProviderSearchOutcome(
-        results,
-        provider="DIA",
-        outcome="ok" if results else "empty",
-        products=len(results),
-    )
-
-
-def _combine_outcomes(
-    provider: str,
-    outcomes: tuple[ProviderSearchOutcome, ...],
-) -> ProviderSearchOutcome:
-    failures = [item for item in outcomes if item.outcome in {"blocked", "error"}]
-    if failures:
-        strongest = "blocked" if any(item.outcome == "blocked" for item in failures) else "error"
-        selected = [item for item in failures if item.outcome == strongest]
-        causes = "; ".join(dict.fromkeys(item.cause for item in selected if item.cause))
-        return ProviderSearchOutcome(
-            [],
-            provider=provider,
-            outcome=strongest,
-            products=0,
-            cause=causes or None,
-        )
-    return ProviderSearchOutcome([], provider=provider, outcome="empty", products=0)
-
-
-def _dia_search_results_from_items(query: str, items: list[dict[str, Any]], max_results: int) -> list[SearchResult]:
-    results: list[SearchResult] = []
-    for item in items:
-        if len(results) >= max_results:
-            break
-        object_id = item.get("object_id") or item.get("sku_id") or ""
-        display_name = item.get("display_name") or ""
-        raw_url = item.get("url") or ""
-        prices = item.get("prices") or {}
-        if not object_id or not display_name or not raw_url:
-            continue
-        product_url = urljoin(DIA_BASE, raw_url)
-        results.append(
-            SearchResult(
-                source="DIA",
-                query=query,
-                display_name=display_name,
-                product_id=str(object_id),
-                url=product_url,
-                brand=item.get("brand"),
-                price=prices.get("price"),
-                price_currency=prices.get("currency"),
-                thumbnail=urljoin(DIA_BASE, item.get("image") or "") if item.get("image") else None,
-                category=item.get("l1_category_description"),
-            )
-        )
-    return results
-
-def _search_mercadona_categories(query: str, max_results: int) -> ProviderSearchOutcome:
-    response = None
-    try:
-        response = requests.get(f"{MERCADONA_BASE}/api/categories/", headers=HEADERS, timeout=15)
-        response.raise_for_status()
-        blocked_cause = blocked_cause_for_response(response)
-        if blocked_cause:
-            return ProviderSearchOutcome(
-                [],
-                provider="Mercadona",
-                outcome="blocked",
-                products=0,
-                cause=blocked_cause,
-            )
-        categories = response.json().get("results") or []
-    except Exception as exc:
-        return _failure_outcome(
-            "Mercadona",
-            exc,
-            response=getattr(exc, "response", None) or response,
-        )
-
-    query_lower = query.lower()
-    results: list[SearchResult] = []
-    seen_ids: set[str] = set()
-    failures: list[ProviderSearchOutcome] = []
-
-    for section in categories:
-        for cat in section.get("categories") or []:
-            if len(results) >= max_results:
-                break
-            cat_id = cat.get("id")
-            cat_name = cat.get("name") or ""
-            if not _query_matches_category(query_lower, cat_name):
-                continue
-            cat_response = None
-            try:
-                cat_response = requests.get(
-                    f"{MERCADONA_BASE}/api/categories/{cat_id}/",
-                    headers=HEADERS,
-                    timeout=15,
-                )
-                cat_response.raise_for_status()
-                blocked_cause = blocked_cause_for_response(cat_response)
-                if blocked_cause:
-                    failures.append(
-                        ProviderSearchOutcome(
-                            [],
-                            provider="Mercadona",
-                            outcome="blocked",
-                            products=0,
-                            cause=blocked_cause,
-                        )
-                    )
-                    continue
-                cat_data = cat_response.json()
-            except Exception as exc:
-                failures.append(
-                    _failure_outcome(
-                        "Mercadona",
-                        exc,
-                        response=getattr(exc, "response", None) or cat_response,
-                    )
-                )
-                continue
-            sub_categories = cat_data.get("categories") or [cat_data]
-            for sub in sub_categories:
-                if len(results) >= max_results:
-                    break
-                for product in sub.get("products") or []:
-                    if len(results) >= max_results:
-                        break
-                    pid = product.get("id")
-                    if pid in seen_ids:
-                        continue
-                    seen_ids.add(pid)
-                    display_name = product.get("display_name") or ""
-                    if not _matches_all_query_terms(display_name, query_lower):
-                        continue
-                    url = product.get("share_url") or ""
-                    pi = product.get("price_instructions") or {}
-                    results.append(
-                        SearchResult(
-                            source="Mercadona",
-                            query=query,
-                            display_name=display_name,
-                            product_id=str(pid),
-                            url=url,
-                            brand=cat_name,
-                            price=pi.get("bulk_price") or pi.get("unit_price"),
-                            price_currency="EUR",
-                            thumbnail=product.get("thumbnail"),
-                            category=section.get("name"),
-                        )
-                    )
-    if results:
-        # Keep the usable products but surface degraded categories instead of
-        # silently dropping their failures as soon as one category succeeded.
-        return ProviderSearchOutcome(
-            results,
-            provider="Mercadona",
-            outcome="ok",
-            products=len(results),
-            cause=_partial_failure_cause(failures),
-        )
-    if failures:
-        return _combine_outcomes("Mercadona", tuple(failures))
-    return ProviderSearchOutcome([], provider="Mercadona", outcome="empty", products=0)
-
-
-def _partial_failure_cause(failures: list[ProviderSearchOutcome]) -> str | None:
-    causes = [item.cause for item in failures if item.cause]
-    if not causes:
-        return None
-    unique = "; ".join(dict.fromkeys(causes))
-    return f"partial failure: {unique}"
-
-
-def _query_matches_category(query_lower: str, cat_name: str) -> bool:
-    cat_lower = cat_name.lower()
-    for token in query_lower.split():
-        if token in cat_lower:
-            return True
-    return False
-
-
-def _matches_all_query_terms(value: str, query: str) -> bool:
-    value_lower = value.lower()
-    terms = _search_terms(query)
-    return not terms or all(term in value_lower for term in terms)
 
 
 def fetch_product(url: str, timeout: int = 20) -> Product:
@@ -642,25 +327,6 @@ def fetch_product(url: str, timeout: int = 20) -> Product:
 
 
 def _fetch_product(url: str, timeout: int = 20) -> Product:
-    if _is_openfoodfacts_url(url):
-        return _fetch_openfoodfacts_product(url, timeout=timeout)
-
-    if "tienda.mercadona.es" in url:
-        product_id = _mercadona_product_id(url)
-        if product_id:
-            return _fetch_mercadona_product(product_id, timeout=timeout)
-
-    if "dia.es" in url and "/p/" in url:
-        return _fetch_dia_product(url, timeout=timeout)
-
-    if "compraonline.alcampo.es" in url and "/products/" in url:
-        return _fetch_alcampo_product(url, timeout=timeout)
-
-    if "tienda.consum.es" in url and "/p/" in url:
-        product_code = _consum_product_code(url)
-        if product_code:
-            return _fetch_consum_product(product_code, timeout=timeout)
-
     if "supermercado.eroski.es" in url and "/productdetail/" in url:
         return _fetch_eroski_product(url, timeout=timeout)
 
@@ -668,11 +334,6 @@ def _fetch_product(url: str, timeout: int = 20) -> Product:
     response.raise_for_status()
     source = supermarket_name_for_url(url)
     return parse_product_page(response.text, url=url, source=source)
-
-
-def _is_openfoodfacts_url(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower().rstrip(".")
-    return host == "openfoodfacts.org" or host.endswith(".openfoodfacts.org")
 
 
 def _get_supported_product_url(
@@ -758,198 +419,6 @@ def _build_product(
     )
 
 
-
-def _mercadona_product_id(url: str) -> str | None:
-    match = re.search(r"/(?:product|products)/(\d+)", url)
-    return match.group(1) if match else None
-
-
-def _fetch_mercadona_product(product_id: str, timeout: int) -> Product:
-    api_url = f"https://tienda.mercadona.es/api/products/{product_id}"
-    response = requests.get(api_url, headers=HEADERS, timeout=timeout)
-    response.raise_for_status()
-    payload = response.json()
-    details = payload.get("details") or {}
-    nutrition_info = payload.get("nutrition_information") or {}
-    raw_nutrition = nutrition_info.get("nutrition_values") or nutrition_info.get("values") or {}
-    ingredients_html = nutrition_info.get("ingredients") or ""
-    ingredients_text = _strip_html(ingredients_html)
-    ingredients_text = re.sub(r"^\s*ingredientes\s*:\s*", "", ingredients_text, flags=re.IGNORECASE)
-
-    return _build_product(
-        name=payload.get("display_name") or details.get("description") or "Unknown Mercadona product",
-        source="Mercadona",
-        url=payload.get("share_url") or api_url,
-        brand=payload.get("brand") or details.get("brand"),
-        description=details.get("description") or details.get("legal_name"),
-        ingredient_text=ingredients_text,
-        ingredient_source="mercadona.nutrition_information.ingredients" if ingredients_text else None,
-        nutrition_raw=_flatten_nutrition(raw_nutrition),
-        raw={"mercadona_api": payload},
-    )
-
-
-def _fetch_dia_product(url: str, timeout: int) -> Product:
-    product_id = _dia_product_id(url)
-    if product_id:
-        try:
-            return _fetch_dia_api_product(product_id, url=url, timeout=timeout)
-        except requests.RequestException:
-            pass
-
-    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    context = _load_script_json(soup, "vike_pageContext")
-    product = ((context.get("INITIAL_STATE") or {}).get("product") or {}) if context else {}
-
-    if not product:
-        return parse_product_page(response.text, url=url, source="DIA")
-
-    return _product_from_dia_payload(product, url=url, raw_key="dia_page_context_product")
-
-
-def _dia_product_id(url: str) -> str | None:
-    match = re.search(r"/p/([^/?#]+)", url)
-    return match.group(1) if match else None
-
-
-def _fetch_dia_api_product(product_id: str, *, url: str, timeout: int) -> Product:
-    api_url = f"https://www.dia.es/api/v1/pdp-back/{product_id}"
-    parsed = urlparse(url)
-    path = parsed.path or f"/p/{product_id}"
-    response = requests.get(
-        api_url,
-        params={"path": path},
-        headers={**HEADERS, "Accept": "application/json"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    product = payload.get("product") or {}
-    if not product:
-        raise ValueError("DIA API response did not include product data.")
-    return _product_from_dia_payload(product, url=url, raw_key="dia_pdp_api_product")
-
-
-def _product_from_dia_payload(product: dict[str, Any], *, url: str, raw_key: str) -> Product:
-    title = (product.get("primary_info") or {}).get("title") or product.get("sku_id") or "Unknown DIA product"
-    ingredients = _strip_html((product.get("ingredients") or {}).get("text") or "")
-    nutritional_info = product.get("nutritional_info") or {}
-    raw_nutrition = _dia_nutrition(nutritional_info)
-
-    return _build_product(
-        name=title,
-        source="DIA",
-        url=url,
-        brand=_dia_brand_from_title(title),
-        description=(product.get("product_info") or {}).get("product"),
-        ingredient_text=ingredients,
-        ingredient_source="dia.ingredients.text" if ingredients else None,
-        nutrition_raw=raw_nutrition,
-        raw={raw_key: product},
-    )
-
-
-def _fetch_alcampo_product(url: str, timeout: int) -> Product:
-    response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    generic = parse_product_page(response.text, url=url, source="Alcampo")
-    sections = _alcampo_sections(soup)
-    nutrition = _table_to_mapping(sections.get("Datos nutricionales"))
-    characteristics = _table_to_mapping(sections.get("Características"))
-    ingredients = sections.get("Ingredientes") or ""
-    brand = sections.get("Marca")
-
-    return _build_product(
-        name=generic.name,
-        source="Alcampo",
-        url=url,
-        brand=brand,
-        description=(
-            characteristics.get("Denominaci\u00f3n legal del alimento")
-            or characteristics.get("Denominaci?n legal del alimento")
-            or generic.description
-        ),
-        ingredient_text=ingredients,
-        ingredient_source="alcampo.sections.Ingredientes" if ingredients else None,
-        nutrition_raw=nutrition,
-        raw={"alcampo_sections": sections, "json_ld": generic.raw.get("json_ld")},
-        fallback=generic,
-    )
-
-
-def _consum_product_code(url: str) -> str | None:
-    match = re.search(r"/p/[^/]+/(\d+)(?:[/?#]|$)", url)
-    return match.group(1) if match else None
-
-
-def _fetch_consum_product(product_code: str, timeout: int) -> Product:
-    api_url = f"https://tienda.consum.es/api/rest/V1.0/catalog/product/code/{product_code}"
-    headers = {
-        **HEADERS,
-        "Accept": "application/json",
-        "x-locale": "es",
-        "x-currency": "EUR",
-        "x-zone": "0",
-    }
-    response = requests.get(api_url, headers=headers, timeout=timeout)
-    response.raise_for_status()
-    payload = response.json()
-    product_data = payload.get("productData") or {}
-    brand = product_data.get("brand") or {}
-    name = product_data.get("name") or f"Consum product {product_code}"
-    description = product_data.get("description") or product_data.get("seoDescription")
-    ingredient_text = _consum_ingredient_text(product_data)
-
-    return _build_product(
-        name=name,
-        source="Consum",
-        url=product_data.get("url") or api_url,
-        brand=brand.get("name") if isinstance(brand, dict) else None,
-        description=description,
-        ingredient_text=ingredient_text,
-        ingredient_source="consum.attributeGroups.ingredients" if ingredient_text else None,
-        nutrition_raw=_consum_nutrition(product_data),
-        raw={"consum_api": payload},
-    )
-
-
-def _consum_ingredient_text(product_data: dict[str, Any]) -> str:
-    values: list[str] = []
-    ingredient_markers = ("ingred", "ingredient", "compos", "composition")
-    for group in product_data.get("attributeGroups") or []:
-        group_label = f"{group.get('name') or ''} {group.get('code') or ''}".lower()
-        for attribute in group.get("attributes") or []:
-            code = str(attribute.get("code") or "").lower()
-            name = str(attribute.get("name") or "").lower()
-            label = f"{group_label} {code} {name}"
-            if code.startswith("hidden.") or code.startswith("filter."):
-                continue
-            if not any(marker in label for marker in ingredient_markers):
-                continue
-            for language in attribute.get("languages") or []:
-                for value in language.get("values") or []:
-                    if isinstance(value, str) and value.strip():
-                        values.append(value.strip())
-    return " ".join(values)
-
-
-def _consum_nutrition(product_data: dict[str, Any]) -> dict[str, object]:
-    nutrition: dict[str, object] = {}
-    for group in product_data.get("attributeGroups") or []:
-        group_name = str(group.get("name") or "").lower()
-        if "nutri" not in group_name and "valor" not in group_name:
-            continue
-        for attribute in group.get("attributes") or []:
-            label = str(attribute.get("name") or attribute.get("code") or "")
-            for language in attribute.get("languages") or []:
-                values = language.get("values") or []
-                if values:
-                    nutrition[label] = values[0]
-    return nutrition
-
 def _fetch_eroski_product(url: str, timeout: int) -> Product:
     response = _get_supported_product_url(url, headers=HEADERS, timeout=timeout)
     response.raise_for_status()
@@ -1022,6 +491,7 @@ def _normalize_eroski_amount(value: str) -> str:
         normalized = re.sub(old, new, normalized, flags=re.IGNORECASE)
     return normalized
 
+
 def _eroski_brand(name: str) -> str | None:
     known = ["Eroski", "Kaiku", "Pascual", "Central Lechera Asturiana", "Puleva"]
     lowered = name.lower()
@@ -1029,73 +499,6 @@ def _eroski_brand(name: str) -> str | None:
         if brand.lower() in lowered:
             return brand
     return None
-def _load_script_json(soup: BeautifulSoup, script_id: str) -> dict[str, Any]:
-    tag = soup.find("script", id=script_id)
-    if not tag or not tag.string:
-        return {}
-    try:
-        return json.loads(tag.string)
-    except json.JSONDecodeError:
-        return {}
-
-
-def _dia_nutrition(nutritional_info: dict[str, Any]) -> dict[str, object]:
-    values = nutritional_info.get("nutritional_values") or {}
-    raw: dict[str, object] = {}
-    if values.get("energy_value") is not None:
-        raw["Valor energetico"] = values.get("energy_value")
-    for item in values.get("values") or []:
-        title = item.get("title")
-        if title:
-            raw[title] = item.get("value_per_100_g", item.get("value"))
-        for child in item.get("items") or []:
-            child_title = child.get("title")
-            if child_title:
-                raw[child_title] = child.get("value_per_100_g", child.get("value"))
-    for item in (nutritional_info.get("vitamins") or {}).get("values") or []:
-        title = item.get("title")
-        if title:
-            raw[title] = item.get("value")
-    return raw
-
-
-def _alcampo_sections(soup: BeautifulSoup) -> dict[str, str]:
-    sections: dict[str, str] = {}
-    for heading in soup.find_all("h2"):
-        title = heading.get_text(" ", strip=True)
-        container = heading.find_parent("div")
-        if not title or not container:
-            continue
-        content_parts = []
-        for sibling in heading.find_next_siblings():
-            content_parts.append(sibling.get_text(" ", strip=True))
-        text = " ".join(part for part in content_parts if part).strip()
-        if text:
-            sections[title] = text
-    return sections
-
-
-def _table_to_mapping(text: str | None) -> dict[str, object]:
-    if not text:
-        return {}
-    pairs: dict[str, object] = {}
-    cleaned = re.sub(r"\s+", " ", text).strip()
-    patterns = [
-        r"(Valor energético \(Kcal\))\s+(\d+(?:[,.]\d+)?\s*Kcal)",
-        r"(Valor energético \(Kj\))\s+(\d+(?:[,.]\d+)?\s*Kj)",
-        r"(Grasas saturadas)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Grasas)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Hidratos de carbono)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Azúcares)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Proteinas|Proteínas)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Sal)\s+(\d+(?:[,.]\d+)?\s*g)",
-        r"(Calcio)\s+(\d+(?:[,.]\d+)?\s*mg)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, cleaned, flags=re.IGNORECASE)
-        if match:
-            pairs[match.group(1)] = match.group(2)
-    return pairs
 
 
 def _standardize_ingredient_text(value: str | None, *, name: str, description: str | None) -> str | None:
@@ -1135,7 +538,6 @@ def _normalize_compare(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
-
 def _strip_html(value: str) -> str:
     value = html.unescape(value)
     value = re.sub(r"<[^>]+>", " ", value)
@@ -1145,46 +547,3 @@ def _strip_html(value: str) -> str:
 def _clean_ingredient_prefix(value: str) -> str:
     value = re.sub(r"^\s*ingredientes\s*:?\s*", "", value, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", value).strip()
-
-
-def _dia_brand_from_title(title: str) -> str | None:
-    known = ["Dia Láctea", "Dia", "Central Lechera Asturiana", "Pascual", "Puleva", "Alpro"]
-    normalized = title.lower()
-    for brand in known:
-        if brand.lower() in normalized:
-            return brand
-    return None
-
-
-def _flatten_nutrition(value: object) -> dict[str, object]:
-    if isinstance(value, dict):
-        flattened: dict[str, object] = {}
-        for key, item in value.items():
-            if isinstance(item, dict):
-                flattened[key] = item.get("value") or item.get("amount") or item.get("name") or str(item)
-            else:
-                flattened[key] = item
-        return flattened
-    if isinstance(value, list):
-        flattened = {}
-        for item in value:
-            if isinstance(item, dict):
-                label = item.get("name") or item.get("label") or item.get("key")
-                amount = item.get("value") or item.get("amount")
-                if label and amount:
-                    flattened[str(label)] = amount
-        return flattened
-    return {}
-
-
-
-
-
-
-
-
-
-
-
-
-

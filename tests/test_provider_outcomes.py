@@ -1,4 +1,3 @@
-import json
 import unittest
 from unittest.mock import patch
 
@@ -15,23 +14,19 @@ from peat_product_scorer.models import (
 )
 from peat_product_scorer.scorer import search_and_score
 from peat_product_scorer.supermarkets.fetcher import (
-    _search_dia,
-    _search_dia_api,
     _search_generic_provider,
-    _search_mercadona_categories,
     search_products,
 )
-from peat_product_scorer.supermarkets.openfoodfacts import OpenFoodFactsProvider
 from peat_product_scorer.web_app import app
 
 
-def _search_result(source: str = "DIA", index: int = 1) -> SearchResult:
+def _search_result(source: str = "Eroski", index: int = 1) -> SearchResult:
     return SearchResult(
         source=source,
         query="leche",
         display_name=f"Leche {index}",
         product_id=str(index),
-        url=f"https://www.dia.es/p/{index}",
+        url=f"https://supermercado.eroski.es/productdetail/{index}",
     )
 
 
@@ -84,13 +79,13 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
                 "peat_product_scorer.supermarkets.fetcher.requests.get",
                 return_value=_FakeResponse(text=(
                     f'<html><script src="{cdn}"></script>'
-                    '<a href="/products/leche-entera/12345">Leche entera</a></html>'
+                    '<a href="/es/productdetail/leche-entera/12345">Leche entera</a></html>'
                 )),
             ):
                 outcome = _search_generic_provider(
-                    "Alcampo",
-                    "https://www.compraonline.alcampo.es/search?text={query}",
-                    "compraonline.alcampo.es", "leche", 5,
+                    "Eroski",
+                    "https://supermercado.eroski.es/es/search/results/?q={query}",
+                    "supermercado.eroski.es", "leche", 5,
                 )
                 self.assertEqual(outcome.outcome, "ok")
                 self.assertEqual(len(outcome), 1)
@@ -106,9 +101,9 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
                 return_value=_FakeResponse(text=f"<html>{challenge}</html>"),
             ):
                 outcome = _search_generic_provider(
-                    "Alcampo",
-                    "https://www.compraonline.alcampo.es/search?text={query}",
-                    "compraonline.alcampo.es", "leche", 5,
+                    "Eroski",
+                    "https://supermercado.eroski.es/es/search/results/?q={query}",
+                    "supermercado.eroski.es", "leche", 5,
                 )
                 self.assertEqual(outcome.outcome, "blocked")
                 self.assertEqual(outcome.products, 0)
@@ -120,9 +115,9 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
             return_value=_FakeResponse(status_code=403),
         ):
             outcome = _search_generic_provider(
-                "Alcampo",
-                "https://www.compraonline.alcampo.es/search?text={query}",
-                "compraonline.alcampo.es",
+                "Eroski",
+                "https://supermercado.eroski.es/es/search/results/?q={query}",
+                "supermercado.eroski.es",
                 "leche",
                 5,
             )
@@ -138,9 +133,9 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
             return_value=_FakeResponse(status_code=429),
         ):
             outcome = _search_generic_provider(
-                "Consum",
-                "https://tienda.consum.es/es/search?text={query}",
-                "tienda.consum.es",
+                "Eroski",
+                "https://supermercado.eroski.es/es/search/results/?q={query}",
+                "supermercado.eroski.es",
                 "leche",
                 5,
             )
@@ -170,9 +165,9 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
             side_effect=RuntimeError("network down"),
         ):
             outcome = _search_generic_provider(
-                "Alcampo",
-                "https://www.compraonline.alcampo.es/search?text={query}",
-                "compraonline.alcampo.es",
+                "Eroski",
+                "https://supermercado.eroski.es/es/search/results/?q={query}",
+                "supermercado.eroski.es",
                 "leche",
                 5,
             )
@@ -187,9 +182,9 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
             return_value=_FakeResponse(text="<html><body>No products here</body></html>"),
         ):
             outcome = _search_generic_provider(
-                "Alcampo",
-                "https://www.compraonline.alcampo.es/search?text={query}",
-                "compraonline.alcampo.es",
+                "Eroski",
+                "https://supermercado.eroski.es/es/search/results/?q={query}",
+                "supermercado.eroski.es",
                 "leche",
                 5,
             )
@@ -197,240 +192,52 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.outcome, "empty")
         self.assertEqual(outcome.products, 0)
 
-    def test_dia_api_page_fallback_preserves_blocked_outcome(self) -> None:
-        with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            return_value=_FakeResponse(status_code=403),
-        ):
-            outcome = _search_dia_api("leche", 5)
-
-        self.assertEqual(outcome.outcome, "blocked")
-        self.assertIn("HTTP 403", outcome.cause or "")
-
-    def test_dia_page_fallback_empty_overrides_api_failure(self) -> None:
-        with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            side_effect=[
-                _FakeResponse(json_error=ValueError("bad API payload")),
-                _FakeResponse(text="<html><body>No products here</body></html>"),
-            ],
-        ):
-            outcome = _search_dia("leche", 5)
-
-        self.assertEqual(outcome.outcome, "empty")
-        self.assertEqual(outcome.products, 0)
-        self.assertEqual(list(outcome), [])
-        self.assertIsNone(outcome.cause)
-
-    def test_dia_page_fallback_products_override_api_failure(self) -> None:
-        page = {
-            "INITIAL_STATE": {
-                "header": {
-                    "searchData": {
-                        "search_items": [
-                            {
-                                "object_id": "1",
-                                "display_name": "Leche entera",
-                                "url": "/p/1",
-                            }
-                        ]
-                    }
-                }
-            }
-        }
-        page_html = (
-            '<html><script id="vike_pageContext">'
-            + json.dumps(page)
-            + "</script></html>"
+    def test_search_products_aggregates_provider_outcomes(self) -> None:
+        eroski = _search_result("Eroski", 1)
+        outcome = ProviderSearchOutcome(
+            [eroski], provider="Eroski", outcome="ok", products=1
         )
         with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            side_effect=[
-                _FakeResponse(json_error=ValueError("bad API payload")),
-                _FakeResponse(text=page_html),
-            ],
+            "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
+            return_value=outcome,
         ):
-            outcome = _search_dia("leche", 5)
+            results = search_products("leche", max_results=5, providers=["Eroski"])
 
-        self.assertEqual(outcome.outcome, "ok")
-        self.assertEqual(outcome.products, 1)
-        self.assertEqual(len(outcome), 1)
-
-    def test_mercadona_partial_category_failure_is_surfaced_with_products(self) -> None:
-        category_list = {
-            "results": [
-                {
-                    "name": "Lacteos",
-                    "categories": [
-                        {"id": 12, "name": "Leche"},
-                        {"id": 13, "name": "Leche entera"},
-                    ],
-                }
-            ]
-        }
-        category_ok = {
-            "categories": [
-                {
-                    "products": [
-                        {
-                            "id": 1,
-                            "display_name": "Leche entera",
-                            "share_url": "https://tienda.mercadona.es/product/1/leche",
-                            "price_instructions": {"bulk_price": 1.5},
-                        }
-                    ]
-                }
-            ]
-        }
-        with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            side_effect=[
-                _FakeResponse(payload=category_list),
-                _FakeResponse(payload=category_ok),
-                _FakeResponse(status_code=403),
-            ],
-        ):
-            outcome = _search_mercadona_categories("leche", 5)
-
-        self.assertEqual(outcome.outcome, "ok")
-        self.assertEqual(outcome.products, 1)
-        self.assertEqual(len(outcome), 1)
-        self.assertIn("partial failure", outcome.cause or "")
-        self.assertIn("HTTP 403", outcome.cause or "")
+        self.assertEqual(results, [eroski])
         self.assertEqual(
-            outcome.to_dict(),
+            [status.provider for status in results.provider_status],
+            ["Eroski"],
+        )
+        statuses = {status.provider: status.to_dict() for status in results.provider_status}
+        self.assertEqual(statuses["Eroski"], {"provider": "Eroski", "outcome": "ok", "products": 1})
+
+    def test_search_products_keeps_blocked_outcome(self) -> None:
+        blocked = ProviderSearchOutcome(
+            [], provider="Eroski", outcome="blocked", products=0, cause="HTTP 403"
+        )
+        with patch(
+            "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
+            return_value=blocked,
+        ):
+            results = search_products("leche", max_results=5, providers=["Eroski"])
+
+        self.assertEqual(results, [])
+        self.assertEqual(
+            results.provider_status[0].to_dict(),
             {
-                "provider": "Mercadona",
-                "outcome": "ok",
-                "products": 1,
-                "cause": "partial failure: HTTP 403",
+                "provider": "Eroski",
+                "outcome": "blocked",
+                "products": 0,
+                "cause": "HTTP 403",
             },
         )
 
-    def test_mercadona_category_failure_is_surfaced_when_empty(self) -> None:
-        category_list = {
-            "results": [{"name": "Lacteos", "categories": [{"id": 12, "name": "Leche"}]}]
-        }
-        with patch(
-            "peat_product_scorer.supermarkets.fetcher.requests.get",
-            side_effect=[
-                _FakeResponse(payload=category_list),
-                _FakeResponse(status_code=403),
-            ],
-        ):
-            outcome = _search_mercadona_categories("leche", 5)
-
-        self.assertEqual(outcome.outcome, "blocked")
-        self.assertIn("HTTP 403", outcome.cause or "")
-
-    def test_openfoodfacts_ok_counts_complete_evidence_products(self) -> None:
-        payload = {
-            "products": [
-                {
-                    "code": "123",
-                    "product_name_es": "Leche entera",
-                    "ingredients_text_es": "Leche entera de vaca",
-                    "nutriments": {
-                        "sugars_100g": 4.7,
-                        "proteins_100g": 3.1,
-                        "fat_100g": 3.6,
-                        "salt_100g": 0.1,
-                    },
-                }
-            ]
-        }
-        with patch(
-            "peat_product_scorer.supermarkets.openfoodfacts.requests.get",
-            return_value=_FakeResponse(payload=payload),
-        ):
-            outcome = OpenFoodFactsProvider().search("leche", max_results=5)
-
-        self.assertEqual(outcome.outcome, "ok")
-        self.assertEqual(outcome.products, 1)
-        self.assertEqual(len(outcome), 1)
-
-    def test_openfoodfacts_incomplete_products_are_empty(self) -> None:
-        payload = {
-            "products": [
-                {
-                    "code": "123",
-                    "product_name_es": "Solo azucar",
-                    "ingredients_text_es": "azucar",
-                    "nutriments": {"sugars_100g": 99.0},
-                }
-            ]
-        }
-        with patch(
-            "peat_product_scorer.supermarkets.openfoodfacts.requests.get",
-            return_value=_FakeResponse(payload=payload),
-        ):
-            outcome = OpenFoodFactsProvider().search("azucar", max_results=5)
-
-        self.assertEqual(outcome.outcome, "empty")
-        self.assertEqual(outcome.products, 0)
-        self.assertEqual(outcome, [])
-
-    def test_search_products_aggregates_mixed_provider_outcomes(self) -> None:
-        dia = _search_result("DIA", 1)
-        outcomes = {
-            "peat_product_scorer.supermarkets.fetcher._search_dia": ProviderSearchOutcome(
-                [dia], provider="DIA", outcome="ok", products=1
-            ),
-            "peat_product_scorer.supermarkets.fetcher._search_mercadona_categories": ProviderSearchOutcome(
-                [], provider="Mercadona", outcome="blocked", products=0, cause="HTTP 403"
-            ),
-            "peat_product_scorer.supermarkets.fetcher._search_generic_provider": ProviderSearchOutcome(
-                [], provider="Alcampo", outcome="empty", products=0
-            ),
-            "peat_product_scorer.supermarkets.fetcher._search_openfoodfacts": ProviderSearchOutcome(
-                [], provider="Open Food Facts", outcome="error", products=0, cause="RuntimeError: boom"
-            ),
-        }
-        with (
-            patch(
-                "peat_product_scorer.supermarkets.fetcher._search_dia",
-                return_value=outcomes["peat_product_scorer.supermarkets.fetcher._search_dia"],
-            ),
-            patch(
-                "peat_product_scorer.supermarkets.fetcher._search_mercadona_categories",
-                return_value=outcomes["peat_product_scorer.supermarkets.fetcher._search_mercadona_categories"],
-            ),
-            patch(
-                "peat_product_scorer.supermarkets.fetcher._search_generic_provider",
-                return_value=outcomes["peat_product_scorer.supermarkets.fetcher._search_generic_provider"],
-            ),
-            patch(
-                "peat_product_scorer.supermarkets.fetcher._search_openfoodfacts",
-                return_value=outcomes["peat_product_scorer.supermarkets.fetcher._search_openfoodfacts"],
-            ),
-        ):
-            results = search_products(
-                "leche",
-                max_results=5,
-                providers=["DIA", "Mercadona", "Alcampo", "Open Food Facts"],
-            )
-
-        self.assertEqual(results, [dia])
-        self.assertEqual(
-            [status.provider for status in results.provider_status],
-            ["DIA", "Mercadona", "Alcampo", "Open Food Facts"],
-        )
-        statuses = {status.provider: status.to_dict() for status in results.provider_status}
-        self.assertEqual(statuses["DIA"], {"provider": "DIA", "outcome": "ok", "products": 1})
-        self.assertEqual(
-            statuses["Mercadona"],
-            {"provider": "Mercadona", "outcome": "blocked", "products": 0, "cause": "HTTP 403"},
-        )
-        self.assertEqual(statuses["Alcampo"], {"provider": "Alcampo", "outcome": "empty", "products": 0})
-        self.assertEqual(statuses["Open Food Facts"]["outcome"], "error")
-        self.assertIn("RuntimeError: boom", statuses["Open Food Facts"]["cause"])
-
     def test_search_and_score_reports_complete_evidence_count(self) -> None:
-        incomplete = _search_result("DIA", 1)
-        complete = _search_result("DIA", 2)
+        incomplete = _search_result("Eroski", 1)
+        complete = _search_result("Eroski", 2)
         search_outcome = SearchResults(
             [incomplete, complete],
-            provider_status=[ProviderOutcome("DIA", "ok", 2)],
+            provider_status=[ProviderOutcome("Eroski", "ok", 2)],
         )
 
         def fetch(url: str, timeout: int = 10) -> Product:
@@ -442,7 +249,7 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
             patch("peat_product_scorer.scorer.search_products", return_value=search_outcome),
             patch("peat_product_scorer.scorer.fetch_product", side_effect=fetch),
         ):
-            results = search_and_score("leche", providers=["DIA"])
+            results = search_and_score("leche", providers=["Eroski"])
 
         self.assertEqual(results.provider_status[0].outcome, "ok")
         self.assertEqual(results.provider_status[0].products, 1)
@@ -450,17 +257,17 @@ class ProviderSearchOutcomeTests(unittest.TestCase):
     def test_search_and_score_keeps_blocked_search_outcome(self) -> None:
         blocked = SearchResults(
             [],
-            provider_status=[ProviderOutcome("Mercadona", "blocked", 0, "HTTP 403")],
+            provider_status=[ProviderOutcome("Eroski", "blocked", 0, "HTTP 403")],
         )
 
         with patch("peat_product_scorer.scorer.search_products", return_value=blocked):
-            results = search_and_score("leche", providers=["Mercadona"])
+            results = search_and_score("leche", providers=["Eroski"])
 
         self.assertEqual(results, [])
         self.assertEqual(
             results.provider_status[0].to_dict(),
             {
-                "provider": "Mercadona",
+                "provider": "Eroski",
                 "outcome": "blocked",
                 "products": 0,
                 "cause": "HTTP 403",
@@ -474,8 +281,8 @@ class ProviderStatusApiTests(unittest.TestCase):
 
     def test_search_endpoint_includes_provider_status(self) -> None:
         statuses = [
-            ProviderOutcome("DIA", "ok", 10),
-            ProviderOutcome("Mercadona", "blocked", 0, "HTTP 403"),
+            ProviderOutcome("Eroski", "ok", 10),
+            ProviderOutcome("Manual", "blocked", 0, "HTTP 403"),
         ]
         with patch(
             "peat_product_scorer.web_app.search_products",
@@ -490,9 +297,9 @@ class ProviderStatusApiTests(unittest.TestCase):
         self.assertEqual(
             response.json()["provider_status"],
             [
-                {"provider": "DIA", "outcome": "ok", "products": 10},
+                {"provider": "Eroski", "outcome": "ok", "products": 10},
                 {
-                    "provider": "Mercadona",
+                    "provider": "Manual",
                     "outcome": "blocked",
                     "products": 0,
                     "cause": "HTTP 403",
@@ -502,8 +309,8 @@ class ProviderStatusApiTests(unittest.TestCase):
 
     def test_search_score_endpoints_include_provider_status(self) -> None:
         statuses = [
-            ProviderOutcome("DIA", "ok", 10),
-            ProviderOutcome("Mercadona", "blocked", 0, "HTTP 403"),
+            ProviderOutcome("Eroski", "ok", 10),
+            ProviderOutcome("Manual", "blocked", 0, "HTTP 403"),
         ]
         scored = ScoredSearchResults([], provider_status=statuses)
         with patch("peat_product_scorer.web_app.search_and_score", return_value=scored):
@@ -517,9 +324,9 @@ class ProviderStatusApiTests(unittest.TestCase):
                     self.assertEqual(
                         response.json()["provider_status"],
                         [
-                            {"provider": "DIA", "outcome": "ok", "products": 10},
+                            {"provider": "Eroski", "outcome": "ok", "products": 10},
                             {
-                                "provider": "Mercadona",
+                                "provider": "Manual",
                                 "outcome": "blocked",
                                 "products": 0,
                                 "cause": "HTTP 403",

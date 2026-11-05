@@ -1,8 +1,7 @@
 ﻿# Ray Peat Product Scorer
 
 MVP for collecting product nutrition data from Spanish online supermarkets and
-the Open Food Facts database, then scoring products through a Ray Peat-inspired
-nutrition lens.
+then scoring products through a Ray Peat-inspired nutrition lens.
 
 This is not medical advice. Ray Peat's writing is not the same as mainstream
 nutrition guidance, and the score is an explainable heuristic based on a
@@ -11,7 +10,7 @@ configurable knowledge base.
 ## What It Does
 
 - Extracts product title, ingredient text, nutrition values, and product
-  metadata from supported supermarket product pages and the Open Food Facts API.
+  metadata from supported supermarket product pages.
 - Normalizes common Spanish nutrition labels such as `grasas`, `hidratos de
   carbono`, `azucares`, `sal`, and `proteinas`.
 - Enforces a strict provider evidence contract before scoring: a product must
@@ -30,14 +29,9 @@ configurable knowledge base.
 
 ## Supermarket Connectors
 
-Registered native connectors:
+Registered native connector:
 
-- Mercadona: product API at `https://tienda.mercadona.es/api/products/{id}`.
-- DIA: product API and server-rendered product JSON in `vike_pageContext`.
-- Alcampo: server-rendered product pages with ingredient and nutrition tables.
-- Consum: product API at `https://tienda.consum.es/api/rest/V1.0/catalog/product/code/{code}`.
 - Eroski: server-rendered product pages with ingredients and full nutrition lists.
-- Open Food Facts: API v2 product and search endpoints at `https://world.openfoodfacts.org/api/v2/`.
 
 The default **All providers** search queries only this registered set. Each
 provider supports search, fetch, and the shared URL/evidence guardrail described
@@ -49,11 +43,10 @@ A live end-to-end audit of every provider named in issue #15 is recorded in
 [`docs/provider_audit.md`](docs/provider_audit.md). The 2026-11-04 run was
 rechecked on 2026-11-05. Only Eroski passed the recheck: DIA is blocked by
 Akamai (HTTP 403), Open Food Facts search is intermittent and query-irrelevant,
-and Mercadona, Alcampo, and Consum fail the evidence guardrail. DIA, Open Food
-Facts, Mercadona, Alcampo, and Consum are flagged for removal in issue #16,
-even though their adapters are still registered in this checkout. The audit
-document includes the per-provider status table, command-output evidence, and
-the explicit keep/remove list.
+and Mercadona, Alcampo, and Consum fail the evidence guardrail. Issue #16
+removed those providers, so the default search and the provider dropdown now
+list Eroski only. The audit document includes the per-provider status table,
+command-output evidence, and the explicit keep/remove list.
 
 ## Quick Start
 
@@ -79,15 +72,10 @@ Evaluate a product JSON file:
 python -m peat_product_scorer score-file examples/sample_product.json
 ```
 
-Fetch and evaluate a live product URL from any registered provider:
+Fetch and evaluate a live product URL from the registered provider:
 
 ```bash
-python -m peat_product_scorer score-url "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
-python -m peat_product_scorer score-url "https://www.compraonline.alcampo.es/products/auchan-leche-entera-de-vaca-6-x-1-l-producto-alcampo/54178"
-python -m peat_product_scorer score-url "https://tienda.mercadona.es/product/4040/aceite-girasol-refinado-02o-hacendado-botella"
-python -m peat_product_scorer score-url "https://tienda.consum.es/es/p/aceite-de-girasol-alto-oleico/7299873"
 python -m peat_product_scorer score-url "https://supermercado.eroski.es/es/productdetail/18672295-leche-entera-del-pais-vasco-eroski-brik-1-litro/"
-python -m peat_product_scorer score-url "https://world.openfoodfacts.org/product/3017620422003"
 ```
 
 Run the test suite:
@@ -133,7 +121,6 @@ src/peat_product_scorer/
     contract.py          Shared provider, URL, and evidence guardrail contract
     adapters.py          Provider registry
     fetcher.py           Search and fetch dispatch for supermarket providers
-    openfoodfacts.py     Open Food Facts API v2 provider
     parser.py            Generic HTML/JSON-LD product page parser
 data/knowledge/
   ray_peat_rules.yaml    Configurable rule knowledge base
@@ -191,8 +178,8 @@ empty providers are visible instead of looking like "no products found":
 
 ```json
 [
-  {"provider": "DIA", "outcome": "ok", "products": 10},
-  {"provider": "Mercadona", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
+  {"provider": "Eroski", "outcome": "ok", "products": 10},
+  {"provider": "Example provider", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
 ]
 ```
 
@@ -208,7 +195,7 @@ rows but always appear in the summary.
 Product payloads returned by the scoring API expose standardized source quality fields:
 
 - `ingredient_text`: cleaned ingredient text before splitting.
-- `ingredient_source`: connector field used for ingredients, such as `dia.ingredients.text`.
+- `ingredient_source`: connector field used for ingredients, such as `eroski.feature.Ingredientes`.
 - `ingredients`: normalized ingredient list.
 - `missing_fields`: reports `ingredients` and/or `nutrition_per_100g` when the source did not expose reliable data.
 
@@ -224,7 +211,7 @@ Example API request:
 ```bash
 curl -X POST http://127.0.0.1:8090/api/score \
   -H 'Content-Type: application/json' \
-  -d '{"url":"https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"}'
+  -d '{"url":"https://supermercado.eroski.es/es/productdetail/18672295-leche-entera-del-pais-vasco-eroski-brik-1-litro/"}'
 ```
 
 ## Deployment Shape

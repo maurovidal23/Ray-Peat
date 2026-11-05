@@ -58,18 +58,18 @@ class ScoringTests(unittest.TestCase):
 class SearchAndScoreTests(unittest.TestCase):
     def test_search_and_score_returns_error_when_fetch_fails(self):
         search_result = SearchResult(
-            source="Consum",
+            source="Eroski",
             query="leche",
             display_name="Leche entera prueba",
             product_id="p1",
-            url="https://tienda.consum.es/es/p/leche-entera/1",
+            url="https://tienda.eroski.es/es/p/leche-entera/1",
         )
 
         with (
             patch("peat_product_scorer.scorer.search_products", return_value=[search_result]),
             patch("peat_product_scorer.scorer.fetch_product", side_effect=RuntimeError("blocked")),
         ):
-            results = search_and_score("leche", providers=["Consum"])
+            results = search_and_score("leche", providers=["Eroski"])
 
         self.assertEqual(len(results), 1)
         self.assertIsNone(results[0].score)
@@ -77,11 +77,11 @@ class SearchAndScoreTests(unittest.TestCase):
 
     def test_search_and_score_does_not_score_provider_search_fallback_without_fetch(self):
         search_result = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="queso",
-            display_name="Queso en DIA",
-            product_id="search-dia-queso",
-            url="https://www.dia.es/search?q=queso",
+            display_name="Queso en Eroski",
+            product_id="search-eroski-queso",
+            url="https://www.eroski.es/search?q=queso",
             category="Queso",
         )
 
@@ -89,7 +89,7 @@ class SearchAndScoreTests(unittest.TestCase):
             patch("peat_product_scorer.scorer.search_products", return_value=[search_result]),
             patch("peat_product_scorer.scorer.fetch_product") as fetch_mock,
         ):
-            results = search_and_score("queso", providers=["DIA"])
+            results = search_and_score("queso", providers=["Eroski"])
 
         fetch_mock.assert_not_called()
         self.assertEqual(len(results), 1)
@@ -98,18 +98,18 @@ class SearchAndScoreTests(unittest.TestCase):
 
     def test_failed_fetch_ranks_after_successful_fetch_even_with_higher_score(self):
         failed = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche entera",
             product_id="failed",
-            url="https://www.dia.es/p/failed",
+            url="https://www.eroski.es/p/failed",
         )
         successful = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Aceite de girasol",
             product_id="successful",
-            url="https://www.dia.es/p/successful",
+            url="https://www.eroski.es/p/successful",
         )
 
         def fetch(result_url: str, timeout: int = 10) -> Product:
@@ -139,11 +139,11 @@ class SearchAndScoreTests(unittest.TestCase):
     def test_product_fetches_run_concurrently(self):
         search_results = [
             SearchResult(
-                source="DIA",
+                source="Eroski",
                 query="leche",
                 display_name=f"Leche {index}",
                 product_id=str(index),
-                url=f"https://www.dia.es/p/{index}",
+                url=f"https://www.eroski.es/p/{index}",
             )
             for index in range(2)
         ]

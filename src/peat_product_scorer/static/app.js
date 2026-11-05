@@ -11,26 +11,6 @@ const predefinedSearches = [
 
 const examples = [
   {
-    name: "Mercadona sunflower oil",
-    source: "Mercadona",
-    url: "https://tienda.mercadona.es/product/4040/aceite-girasol-refinado-02o-hacendado-botella",
-  },
-  {
-    name: "DIA whole milk",
-    source: "DIA",
-    url: "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
-  },
-  {
-    name: "Alcampo whole milk",
-    source: "Alcampo",
-    url: "https://www.compraonline.alcampo.es/products/auchan-leche-entera-de-vaca-6-x-1-l-producto-alcampo/54178",
-  },
-  {
-    name: "Consum high oleic oil",
-    source: "Consum",
-    url: "https://tienda.consum.es/es/p/aceite-de-girasol-alto-oleico/7299873",
-  },
-  {
     name: "Eroski whole milk",
     source: "Eroski",
     url: "https://supermercado.eroski.es/es/productdetail/18672295-leche-entera-del-pais-vasco-eroski-brik-1-litro/",
@@ -713,7 +693,7 @@ async function submitScore(event) {
       return;
     }
     if (!isLikelyProductUrl(url)) {
-      setMessage("Use a complete supermarket URL, for example https://www.dia.es/.../p/608P6.", true);
+      setMessage("Use a complete supermarket URL, for example https://supermercado.eroski.es/.../productdetail/...", true);
       return;
     }
     els.productUrl.value = url;
@@ -735,105 +715,20 @@ async function submitScore(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    let data = await parseJsonResponse(response);
+    const data = await parseJsonResponse(response);
     if (!response.ok) {
-      if (mode === "url" && isDiaProductUrl(payload.url)) {
-        data = await scoreDiaUrlInBrowser(payload.url);
-      } else {
-        throw new Error(data.detail || "The product could not be scored.");
-      }
+      throw new Error(data.detail || "The product could not be scored.");
     }
     renderResult(data);
     setMessage("Score ready.");
   } catch (error) {
-    // HTTP guardrail failures and failed browser fallbacks have no score payload.
-    // Replace any previous result, preserving the provider detail as plain text.
+    // HTTP guardrail failures have no score payload. Replace any previous result,
+    // preserving the provider detail as plain text.
     renderResult({ score: null, error: error.message, product: payload.product || {} });
     setMessage(scoreErrorMessage(error.message), true);
   } finally {
     setLoading(false);
   }
-}
-
-function isDiaProductUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.hostname.endsWith("dia.es") && url.pathname.includes("/p/");
-  } catch (error) {
-    return false;
-  }
-}
-
-async function scoreDiaUrlInBrowser(productUrl) {
-  const url = new URL(productUrl);
-  const productId = diaProductIdFromPath(url.pathname);
-  if (!productId) throw new Error("DIA product URL could not be read.");
-
-  const apiUrl = new URL(`https://www.dia.es/api/v1/pdp-back/${encodeURIComponent(productId)}`);
-  apiUrl.searchParams.set("path", url.pathname);
-  const diaResponse = await fetch(apiUrl.toString(), { headers: { Accept: "application/json" } });
-  const diaData = await parseJsonResponse(diaResponse);
-  if (!diaResponse.ok || !diaData.product) {
-    throw new Error("DIA product data could not be loaded.");
-  }
-
-  const scoreResponse = await fetch("/api/score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ product: productPayloadFromDia(diaData.product, productUrl) }),
-  });
-  const scoreData = await parseJsonResponse(scoreResponse);
-  if (!scoreResponse.ok) {
-    throw new Error(scoreData.detail || "The DIA product could not be scored.");
-  }
-  return scoreData;
-}
-
-function diaProductIdFromPath(pathname) {
-  const match = pathname.match(/\/p\/([^/?#]+)/);
-  return match ? match[1] : null;
-}
-
-function productPayloadFromDia(product, productUrl) {
-  const title = product.primary_info?.title || product.sku_id || "Unknown DIA product";
-  return {
-    name: title,
-    source: "DIA",
-    url: productUrl,
-    brand: diaBrandFromTitle(title),
-    description: product.product_info?.product || product.product_info?.subtitle || null,
-    ingredients: stripHtml(product.ingredients?.text || ""),
-    nutrition: diaNutritionPayload(product.nutritional_info || {}),
-  };
-}
-
-function diaNutritionPayload(nutritionalInfo) {
-  const values = nutritionalInfo.nutritional_values || {};
-  const nutrition = {};
-  if (values.energy_value !== undefined && values.energy_value !== null) {
-    nutrition["Valor energetico"] = values.energy_value;
-  }
-  (values.values || []).forEach((item) => {
-    if (item.title) nutrition[item.title] = item.value_per_100_g ?? item.value;
-    (item.items || []).forEach((child) => {
-      if (child.title) nutrition[child.title] = child.value_per_100_g ?? child.value;
-    });
-  });
-  ((nutritionalInfo.vitamins || {}).values || []).forEach((item) => {
-    if (item.title) nutrition[item.title] = item.value_per_100_g ?? item.value;
-  });
-  return nutrition;
-}
-
-function stripHtml(value) {
-  const parsed = new DOMParser().parseFromString(String(value), "text/html");
-  return parsed.body.textContent.replace(/\s+/g, " ").replace(/^ingredientes\s*:?\s*/i, "").trim();
-}
-
-function diaBrandFromTitle(title) {
-  const known = ["Dia Lactea", "Dia L?ctea", "Dia", "Central Lechera Asturiana", "Pascual", "Puleva", "Alpro"];
-  const normalized = title.toLowerCase();
-  return known.find((brand) => normalized.includes(brand.toLowerCase())) || null;
 }
 
 async function parseJsonResponse(response) {
@@ -1104,7 +999,7 @@ async function loadSearchProviders() {
     const data = await response.json();
     renderSearchProviders(data.providers || []);
   } catch (error) {
-    renderSearchProviders(["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski"]);
+    renderSearchProviders(["all"]);
   }
 }
 
@@ -1156,7 +1051,7 @@ async function submitBestProducts(event) {
     });
     const data = await parseJsonResponse(response);
     if (!response.ok) throw new Error(data.detail || "Products could not be searched.");
-    const results = await enrichDiaSearchScores(data.results || []);
+    const results = data.results || [];
     renderBestProducts(results);
     const total = data.total || results.length;
     const scoredCount = results.filter((item) => hasScoreValue(item.score?.score)).length;
@@ -1183,31 +1078,6 @@ async function submitBestProducts(event) {
   } finally {
     setBestProductsLoading(false);
   }
-}
-
-async function enrichDiaSearchScores(results) {
-  const enriched = [];
-  for (const item of results) {
-    if (shouldScoreDiaSearchResultInBrowser(item)) {
-      try {
-        const exactScore = await scoreDiaUrlInBrowser(item.search.url);
-        enriched.push({ ...item, score: exactScore, error: null });
-        continue;
-      } catch (error) {
-        enriched.push(item);
-        continue;
-      }
-    }
-    enriched.push(item);
-  }
-  return enriched;
-}
-
-function shouldScoreDiaSearchResultInBrowser(item) {
-  const source = item?.search?.source || item?.score?.product?.source;
-  const url = item?.search?.url || item?.score?.product?.url;
-  if (source !== "DIA" || !item?.error || !url) return false;
-  return isDiaProductUrl(url);
 }
 
 function unscoredMessage(error) {
