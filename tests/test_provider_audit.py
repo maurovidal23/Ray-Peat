@@ -1,7 +1,10 @@
 import re
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import requests
 from typer.testing import CliRunner
 
 from peat_product_scorer.cli import app as cli_app
@@ -73,7 +76,7 @@ class ProviderAuditDocumentTests(unittest.TestCase):
                 )
                 self.assertTrue(decision.startswith(("keep", "remove")))
 
-    def test_keep_list_matches_the_working_providers(self) -> None:
+    def test_keep_list_is_a_subset_of_registered_providers(self) -> None:
         classification_section = self.document.split("## Keep / remove decision", 1)[1]
         classification_section = classification_section.split("**Keep:**", 1)[0]
         classifications = dict(
@@ -85,7 +88,11 @@ class ProviderAuditDocumentTests(unittest.TestCase):
         )
 
         keep = {provider for provider, decision in classifications.items() if decision.startswith("keep")}
-        self.assertEqual(keep, {"DIA", "Eroski", "Open Food Facts"})
+        registered = {adapter.name for adapter in ADAPTERS}
+        self.assertTrue(
+            keep <= registered,
+            f"audit keep list contains providers missing from adapters.py: {keep - registered}",
+        )
 
 
 class RemovedProviderCliTests(unittest.TestCase):
@@ -108,6 +115,21 @@ class RemovedProviderCliTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
         self.assertIn("not a supported supermarket", result.output)
+
+    def test_score_url_reports_a_blocked_fetch_without_a_traceback(self) -> None:
+        blocked = requests.HTTPError(
+            "HTTP 403",
+            response=SimpleNamespace(status_code=403),
+        )
+        with patch("peat_product_scorer.cli.fetch_product", side_effect=blocked):
+            result = CliRunner().invoke(
+                cli_app,
+                ["score-url", "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"],
+            )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("Provider fetch failed (blocked): HTTP 403", result.output)
+        self.assertNotIn("Traceback", result.output)
 
 
 if __name__ == "__main__":

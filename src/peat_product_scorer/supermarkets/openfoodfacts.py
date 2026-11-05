@@ -7,9 +7,15 @@ from urllib.parse import urlparse
 
 import requests
 
-from ..models import Product, SearchResult
+from ..models import Product, ProviderSearchOutcome, SearchResult
 from ..nutrition import split_ingredients
-from .contract import ProductProvider, ProviderEvidenceError, validate_provider_url
+from .contract import (
+    ProductProvider,
+    ProviderEvidenceError,
+    blocked_cause_for_response,
+    classify_provider_failure,
+    validate_provider_url,
+)
 
 BASE_URL = "https://world.openfoodfacts.org"
 SOURCE = "Open Food Facts"
@@ -64,9 +70,10 @@ class OpenFoodFactsProvider(ProductProvider):
         query: str,
         max_results: int = 10,
         timeout: int = 15,
-    ) -> list[SearchResult]:
+    ) -> ProviderSearchOutcome:
         if max_results <= 0 or not query.strip():
-            return []
+            return ProviderSearchOutcome([], provider=SOURCE, outcome="empty", products=0)
+        response = None
         try:
             response = requests.get(
                 f"{BASE_URL}{SEARCH_PATH}",
@@ -80,15 +87,38 @@ class OpenFoodFactsProvider(ProductProvider):
                 timeout=timeout,
             )
             response.raise_for_status()
+            blocked_cause = blocked_cause_for_response(response)
+            if blocked_cause:
+                return ProviderSearchOutcome(
+                    [],
+                    provider=SOURCE,
+                    outcome="blocked",
+                    products=0,
+                    cause=blocked_cause,
+                )
             payload = response.json()
-        except (requests.RequestException, ValueError):
-            return []
+        except Exception as exc:
+            outcome, cause = classify_provider_failure(
+                exc,
+                response=getattr(exc, "response", None) or response,
+            )
+            return ProviderSearchOutcome(
+                [],
+                provider=SOURCE,
+                outcome=outcome,
+                products=0,
+                cause=cause,
+            )
         if not isinstance(payload, dict):
-            return []
+            return ProviderSearchOutcome([], provider=SOURCE, outcome="empty", products=0)
+
+        products = payload.get("products")
+        if not isinstance(products, list):
+            return ProviderSearchOutcome([], provider=SOURCE, outcome="empty", products=0)
 
         results: list[SearchResult] = []
         seen_codes: set[str] = set()
-        for item in payload.get("products") or []:
+        for item in products:
             if len(results) >= max_results:
                 break
             if not isinstance(item, dict):
@@ -116,7 +146,12 @@ class OpenFoodFactsProvider(ProductProvider):
                     category=_category(item),
                 )
             )
-        return results
+        return ProviderSearchOutcome(
+            results,
+            provider=SOURCE,
+            outcome="ok" if results else "empty",
+            products=len(results),
+        )
 
     def fetch(self, url: str, timeout: int = 20) -> Product:
         validate_provider_url(url, self.domains)

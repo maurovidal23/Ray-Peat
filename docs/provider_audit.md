@@ -1,11 +1,12 @@
-# Provider audit — 2026-11-04
+# Provider audit — 2026-11-04 (rechecked 2026-11-05)
 
 This document records an end-to-end audit of every supermarket provider named
 in issue #15 plus Open Food Facts. The audit ran against the current registered
 adapter registry (`src/peat_product_scorer/supermarkets/adapters.py`) using live
-network requests from the maintainer checkout on **2026-11-04**. The results
-below are evidence from those live runs, not a restatement of the earlier
-exploration notes.
+network requests from the maintainer checkout on **2026-11-04** and was
+rechecked on **2026-11-05**. The results below are evidence from those live
+runs, not a restatement of the earlier exploration notes. Where the two runs
+differ, both are recorded.
 
 A provider is marked **working** only when a real query returns multiple
 products whose fetched page supplies non-empty `ingredients` and at least four
@@ -17,9 +18,9 @@ this audit.
 
 | Provider | Search works? | Fetch works? | Ingredients? | Nutrition per 100 g? | Verdict | Failure cause | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **DIA** | Yes (5/5 for `leche`, 5/5 for `yogur`) | Yes (5/5 fetched) | Yes | Yes (7–8 keys; 4-of-6 guardrail passes) | **working** | — | `search-score "leche" --source DIA` → scores 78–80; `score-url` README milk URL → 80/100 |
-| **Eroski** | Yes (5/5 for `leche`, 5/5 for `yogur`) | Yes (5/5 fetched) | Yes | Yes (7–8 keys; 4-of-6 guardrail passes) | **working** | — | `search-score "leche" --source Eroski` → 78; `search-score "yogur" --source Eroski` → 76; `score-url` README milk URL → 78/100 |
-| **Open Food Facts** | Partial: evidence-conforming results, but the upstream search page ignores query semantics and intermittently returns `503` | Yes (5/5 fetched when search succeeds) | Yes | Yes (8–9 keys; guardrail passes) | **working\*** | Upstream `/api/v2/search` returned the same generic catalogue page for `leche` and `yogur`, and `503 Page temporarily unavailable` on some attempts. Product URLs still fetch scoreable evidence. | `search-score "leche" --source "Open Food Facts"` → scores 42–70 for unrelated products; `score-url` Nutella barcode → 42/100 |
+| **DIA** | **No** (blocked; 0 results) | **No** (HTTP 403) | No | No | **broken** | Akamai bot blocking: on 2026-11-04 the homepage returned HTTP 200 while `/api`, `/search` and `/p/` paths returned HTTP 403 from this environment. The 2026-11-05 recheck returned HTTP 403 for all paths, including the homepage. | `search-score "leche"/"yogur" --source DIA` → `No products found or scored.`; `score-url` README milk URL → `Provider fetch failed (blocked): HTTP 403`; `curl` → `403` for `/`, `/api/...`, `/search?q=leche`, and the `/p/` product URL |
+| **Eroski** | Yes (3/3 for `leche`, 3/3 for `yogur` on recheck) | Yes (3/3 fetched) | Yes | Yes (7–8 keys; 4-of-6 guardrail passes) | **working** | — | `search-score "leche" --source Eroski` → 78; `search-score "yogur" --source Eroski` → 73 on 2026-11-05 (76 on 2026-11-04); `score-url` README milk URL → 78/100 |
+| **Open Food Facts** | **No**: degraded. 4 of 6 bounded attempts returned no products; the 2 successful attempts returned query-irrelevant catalogue items. | Yes (fetched products pass the guardrail) | Yes | Yes (8–9 keys; guardrail passes) | **broken** (degraded search) | Upstream `/api/v2/search` intermittently returns `503`/empty and ignores query semantics: `leche` and `yogur` both return the same unrelated catalogue page (Copos de avena, Cacao puro, Guacamole). Fetch still works, but search does not reliably return query-relevant scoreable products. | 2026-11-05, 3 attempts per query: `leche` → empty, empty, then scores 70/70/66 for Copos de avena/Cacao puro/Guacamole; `yogur` → empty, same unrelated top three, empty. `score-url` Nutella barcode → 42/100 |
 | **Mercadona** | Yes (5/5 for both queries) | **No** | Yes | **No** | **broken** | Product API schema change: `/api/products/{id}` now exposes `nutrition_information` containing only `allergens` and `ingredients`. All six guardrail nutrients are absent, so no product can be scored. | `search-score "leche" --source Mercadona` → 5 rows, all `Mercadona evidence incomplete: missing sugars_g, protein_g, fat_g, saturated_fat_g, salt_g, carbs_g` |
 | **Alcampo** | **No** (0 results) | **No** | No | No | **broken** | AWS WAF challenge blocks search and product pages (`x-amzn-waf-action: challenge`, HTTP 202/302/403 depending on headers). A transient earlier search result also lacked every guardrail nutrient. | `search-score "leche" --source Alcampo` → `No products found or scored.`; README product URL → `Alcampo evidence incomplete: missing ingredients, sugars_g, protein_g, fat_g, saturated_fat_g, salt_g, carbs_g` |
 | **Consum** | **No** (0 results) | **No** | No | No | **broken** | Search page is a JS-rendered Angular shell with zero product anchors. The product API's `attributeGroups` contains only `hidden.*`/`filter.*` entries; sampled products expose no ingredient or nutrition groups, and the configured nutritional-info JSON returned 404 for sampled EANs. | `search-score "leche" --source Consum` and `... "yogur" ...` → `No products found or scored.`; README product URL → `Consum evidence incomplete: missing ingredients, sugars_g, protein_g, fat_g, saturated_fat_g, salt_g, carbs_g` |
@@ -36,11 +37,12 @@ this audit.
 | **Froiz** | No | No | No | No | **broken** (removed) | Removed from the registry: connection timeout/no response from this environment. | Recorded exploration notes; URL allowlist rejects the domain. |
 | **Bon Preu / Esclat** | No | No | No | No | **broken** (removed) | Removed from the registry: the partial connector exposed identity/metadata but not ingredients or nutrition. | Recorded exploration notes; URL allowlist rejects the domain. |
 
-\* Open Food Facts is kept because its fetched products satisfy the evidence
-contract and its API is the open-data fallback. Its search endpoint is degraded
-upstream: results are not query-relevant and the service intermittently returns
-`503`. This should be revisited in the removal issue if the upstream behaviour
-does not recover.
+\* Open Food Facts' fetched products still satisfy the evidence contract, but
+the 2026-11-05 recheck failed the audit's search criterion: results are not
+query-relevant and the service intermittently returns `503`. It is therefore
+recorded as **broken (degraded search)** rather than working-with-caveats. It is
+flagged for removal in issue #16; a future connector can be reconsidered if the
+upstream search recovers.
 
 ## Structured live matrix
 
@@ -49,9 +51,9 @@ products`, with `--max-results 5` and a 15-second fetch timeout.
 
 | Provider | `leche` | `yogur` | Notes |
 | --- | --- | --- | --- |
-| DIA | 5 / 5 / 5 | 5 / 5 / 5 | Ingredients non-empty; 7–8 nutrition keys; 4-of-6 guardrail passes. |
-| Eroski | 5 / 5 / 5 | 5 / 5 / 5 | Ingredients non-empty; 7–8 nutrition keys; 4-of-6 guardrail passes. |
-| Open Food Facts | 5 / 5 / 5 | 0 / 0 / 0, then 5 / 5 / 5 on retry | Results are evidence-conforming but unrelated to the query; `503` is intermittent. |
+| DIA | 0 / 0 / 0 | 0 / 0 / 0 | Search and product URLs blocked with HTTP 403 (Akamai) on 2026-11-04 and 2026-11-05. |
+| Eroski | 5 / 5 / 5 (3 / 3 / 3 on recheck) | 5 / 5 / 5 (3 / 3 / 3 on recheck) | Ingredients non-empty; 7–8 nutrition keys; 4-of-6 guardrail passes. |
+| Open Food Facts | 0 / 0 / 0 on 2 of 3 attempts; 3 / 3 / 3 on 1 attempt | 0 / 0 / 0 on 2 of 3 attempts; 3 / 3 / 3 on 1 attempt | Successful attempts return the same evidence-conforming but query-irrelevant catalogue items; `503`/empty is intermittent. |
 | Mercadona | 5 / 0 / 0 | 5 / 0 / 0 | Fetch fails the guardrail because nutrition is missing. |
 | Alcampo | 0 / 0 / 0 | 0 / 0 / 0 | Search blocked by WAF. |
 | Consum | 0 / 0 / 0 | 0 / 0 / 0 | Search page has no product anchors; product API lacks evidence. |
@@ -60,22 +62,32 @@ products`, with `--max-results 5` and a 15-second fetch timeout.
 
 ### DIA
 
-```text
-$ PYTHONPATH=src python -m peat_product_scorer search-score "leche" --source DIA --max-results 5
-│ 80 │ strong fit │ DIA │ Leche semidesnatada Dia Láctea pack 6 x 1 L │ Dia Láctea │ 4.98 EUR │ │
-│ 80 │ strong fit │ DIA │ Leche entera Dia Láctea pack 6 x 1 L        │ Dia Láctea │ 5.76 EUR │ │
-...
-Top result: Leche semidesnatada Dia Láctea pack 6 x 1 L
-Score: 80/100 (strong fit)
+Live recheck on 2026-11-05 (blocked by Akamai from this environment):
 
-$ PYTHONPATH=src python -m peat_product_scorer search-score "yogur" --source DIA --max-results 5
-│ 79 │ reasonable fit │ DIA │ Yogur natural con azúcar de caña Dia Láctea 6 x 125 g │ ...
-Score: 79/100 (reasonable fit)
+```text
+$ PYTHONPATH=src python -m peat_product_scorer search-score "leche" --source DIA --max-results 3
+No products found or scored.
+
+$ PYTHONPATH=src python -m peat_product_scorer search-score "yogur" --source DIA --max-results 3
+No products found or scored.
 
 $ PYTHONPATH=src python -m peat_product_scorer score-url "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
-Leche entera Dia Láctea pack 6 x 1 L
-Score: 80/100 (strong fit)
+Provider fetch failed (blocked): HTTP 403
+# exit code 1
+
+$ for u in / /api/v1/search-back/search?q=leche /search?q=leche \
+    /huevos-leche-y-mantequilla/leche/p/608P6; do
+    curl -s -o /dev/null -w '%{http_code}' -A 'Mozilla/5.0' "https://www.dia.es$u"; done
+403
+403
+403
+403
 ```
+
+The 2026-11-04 run recorded the same HTTP 403 on `/api`, `/search` and `/p/`
+paths, with the homepage returning HTTP 200 at that time. Earlier exploration
+output showing scores for DIA is no longer reproducible from this environment
+and is not used as the current verdict.
 
 ### Eroski
 
@@ -95,26 +107,33 @@ Score: 78/100 (reasonable fit)
 
 ### Open Food Facts
 
+Bounded live retries on 2026-11-05 (three attempts per query):
+
 ```text
-$ PYTHONPATH=src python -m peat_product_scorer search-score "leche" --source "Open Food Facts" --max-results 5
+$ for i in 1 2 3; do ... search-score "leche" --source "Open Food Facts" --max-results 3; done
+attempt 1: No products found or scored.
+attempt 2: No products found or scored.
+attempt 3:
 │ 70 │ reasonable fit │ Open Food Facts │ Copos de avena extra suaves │ H. & J. Brüggen KG │ ...
 │ 70 │ reasonable fit │ Open Food Facts │ Cacao puro desgrasado en polvo │ CHOCOLATES VALOR ... │ ...
 │ 66 │ reasonable fit │ Open Food Facts │ Guacamole │ Hacendado, MERCADONA │ ...
 Top result: Copos de avena extra suaves
 Score: 70/100 (reasonable fit)
 
-$ PYTHONPATH=src python -m peat_product_scorer search-score "yogur" --source "Open Food Facts" --max-results 5
-No products found or scored.        # intermittent upstream 503
-# retry returned the same unrelated catalogue page (Copos de avena / Guacamole / ...)
+$ for i in 1 2 3; do ... search-score "yogur" --source "Open Food Facts" --max-results 3; done
+attempt 1: No products found or scored.
+attempt 2: same unrelated top three (Copos de avena / Cacao puro / Guacamole)
+attempt 3: No products found or scored.
 
 $ PYTHONPATH=src python -m peat_product_scorer score-url "https://world.openfoodfacts.org/product/3017620422003"
 Nutella
 Score: 42/100 (weak fit)
 ```
 
-The search payloads fetched successfully and passed the guardrail, but the
-product names are not milk or yoghurt. This is recorded as degraded upstream
-search rather than silent success.
+Search succeeds intermittently, and successful payloads pass the guardrail, but
+the returned products are not milk or yoghurt. This fails the audit's
+query-relevance and reliability criterion, so it is recorded as broken/degraded
+search rather than silent success. Fetching a known product URL still works.
 
 ### Mercadona
 
@@ -183,9 +202,9 @@ reviewable together.
 
 | Provider | Classification |
 | --- | --- |
-| **DIA** | keep |
 | **Eroski** | keep |
-| **Open Food Facts** | keep (degraded upstream search) |
+| **DIA** | remove (flagged for issue #16; blocked by Akamai HTTP 403) |
+| **Open Food Facts** | remove (flagged for issue #16; degraded upstream search) |
 | **Mercadona** | remove (flagged for issue #16) |
 | **Alcampo** | remove (flagged for issue #16) |
 | **Consum** | remove (flagged for issue #16) |
@@ -202,10 +221,11 @@ reviewable together.
 | **Froiz** | remove (already removed) |
 | **Bon Preu / Esclat** | remove (already removed) |
 
-**Keep:** DIA, Eroski, Open Food Facts.
+**Keep:** Eroski.
 
-**Remove:** Mercadona, Alcampo, Consum (currently registered but broken) plus
-all previously removed providers above. Issue #16 should consume this list.
+**Remove:** DIA, Open Food Facts, Mercadona, Alcampo, and Consum (currently
+registered but broken), plus all previously removed providers above. Issue #16
+should consume this list.
 
 ## Reproduction
 

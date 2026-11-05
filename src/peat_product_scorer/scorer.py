@@ -8,9 +8,11 @@ from .knowledge_base import load_knowledge_base
 from .models import (
     Product,
     ProductScore,
+    ProviderOutcome,
     ScoreComponent,
     ScoreContribution,
     ScoredSearchResult,
+    ScoredSearchResults,
     ScoreReason,
     SearchResult,
 )
@@ -721,8 +723,10 @@ def search_and_score(
     max_score: int | None = None,
     sort_by: str = "score",
     providers: list[str] | None = None,
-) -> list[ScoredSearchResult]:
+) -> ScoredSearchResults:
     search_results = search_products(query, max_results=max_per_source, providers=providers)
+    search_list = list(search_results)
+    provider_status = _provider_status_from_search(search_results, providers)
 
     def fetch_and_score(sr: SearchResult) -> ScoredSearchResult:
         if sr.product_id.startswith("search-"):
@@ -734,9 +738,16 @@ def search_and_score(
         except Exception as e:
             return ScoredSearchResult(search=sr, score=None, error=str(e))
 
-    candidates = search_results[:max_results]
+    candidates = search_list[:max_results]
     with ThreadPoolExecutor(max_workers=min(4, len(candidates) or 1)) as executor:
         scored = list(executor.map(fetch_and_score, candidates))
+
+    provider_status = _merge_scored_provider_status(
+        provider_status,
+        scored,
+        search_list,
+        providers,
+    )
 
     if sort_by == "name":
         scored.sort(key=lambda x: (x.score is None, x.search.display_name.lower()))
@@ -749,4 +760,92 @@ def search_and_score(
     if max_score is not None:
         scored = [s for s in scored if s.score and s.score.score <= max_score]
 
-    return scored[:max_results]
+    return ScoredSearchResults(scored[:max_results], provider_status=provider_status)
+
+
+def _provider_status_from_search(
+    search_results: object,
+    providers: list[str] | None,
+) -> list[ProviderOutcome]:
+    status = getattr(search_results, "provider_status", None)
+    if status:
+        return list(status)
+
+    # Backward compatible fallback for callers/tests that return a plain list.
+    order: list[str] = []
+    counts: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for result in list(search_results or []):
+        source = result.source or "Unknown"
+        key = source.lower()
+        if key not in counts:
+            order.append(key)
+            counts[key] = 0
+            names[key] = source
+        counts[key] += 1
+    if providers:
+        for provider in providers:
+            key = provider.lower()
+            if provider and key != "all" and key not in order:
+                order.append(key)
+                names[key] = provider
+                counts[key] = 0
+    return [
+        ProviderOutcome(
+            provider=names[key],
+            outcome="ok" if counts.get(key) else "empty",
+            products=counts.get(key, 0),
+        )
+        for key in order
+    ]
+
+
+def _merge_scored_provider_status(
+    provider_status: list[ProviderOutcome],
+    scored: list[ScoredSearchResult],
+    search_results: list[SearchResult],
+    providers: list[str] | None,
+) -> list[ProviderOutcome]:
+    ordered: list[str] = []
+    status_by_key: dict[str, ProviderOutcome] = {}
+
+    def add(status: ProviderOutcome) -> None:
+        key = status.provider.lower()
+        if key not in status_by_key:
+            ordered.append(key)
+            status_by_key[key] = status
+
+    for status in provider_status:
+        add(status)
+    for result in search_results:
+        add(ProviderOutcome(result.source or "Unknown", "empty", 0))
+    if providers:
+        for provider in providers:
+            if provider and provider.lower() != "all":
+                add(ProviderOutcome(provider, "empty", 0))
+
+    complete_counts: dict[str, int] = {}
+    for row in scored:
+        if row.score is not None:
+            key = (row.search.source or "Unknown").lower()
+            complete_counts[key] = complete_counts.get(key, 0) + 1
+
+    merged: list[ProviderOutcome] = []
+    for key in ordered:
+        original = status_by_key[key]
+        if original.outcome in {"blocked", "error"}:
+            merged.append(
+                ProviderOutcome(
+                    provider=original.provider,
+                    outcome=original.outcome,
+                    products=0,
+                    cause=original.cause,
+                )
+            )
+            continue
+        complete = complete_counts.get(key, 0)
+        if complete:
+            merged.append(ProviderOutcome(original.provider, "ok", complete, original.cause))
+        else:
+            merged.append(ProviderOutcome(original.provider, "empty", 0, original.cause))
+    return merged

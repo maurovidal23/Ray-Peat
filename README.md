@@ -46,9 +46,11 @@ requested explicitly by name. That document also lists removed providers, the
 guardrail reasons for their removal, and exploration notes for blocked stores.
 
 A live end-to-end audit of every provider named in issue #15 is recorded in
-[`docs/provider_audit.md`](docs/provider_audit.md). The 2026-11-04 run found DIA,
-Eroski, and Open Food Facts returning scoreable evidence. Mercadona, Alcampo,
-and Consum failed the evidence audit and are flagged for removal in issue #16,
+[`docs/provider_audit.md`](docs/provider_audit.md). The 2026-11-04 run was
+rechecked on 2026-11-05. Only Eroski passed the recheck: DIA is blocked by
+Akamai (HTTP 403), Open Food Facts search is intermittent and query-irrelevant,
+and Mercadona, Alcampo, and Consum fail the evidence guardrail. DIA, Open Food
+Facts, Mercadona, Alcampo, and Consum are flagged for removal in issue #16,
 even though their adapters are still registered in this checkout. The audit
 document includes the per-provider status table, command-output evidence, and
 the explicit keep/remove list.
@@ -174,12 +176,34 @@ API endpoints:
 - `GET /api/version` returns the package version and build label.
 - `GET /api/connectors` returns the verified connectors and their allowed domains.
 - `GET /api/search-providers` returns `all` plus the verified search providers.
-- `POST /api/search` searches registered providers and returns product links.
+- `POST /api/search` searches verified providers and returns product links plus a
+  per-provider `provider_status` summary.
 - `POST /api/search-score` searches, fetches, and scores only products that pass
-  the evidence guardrail; unscored rows include an `error` and no `score`.
+  the evidence guardrail; unscored rows include an `error` and no `score`. Its
+  response also includes `provider_status`. The legacy `/api/search-and-score`
+  alias accepts the same request.
 - `GET /api/articles` returns PDF-derived paper summaries and language availability.
 - `GET /api/articles/{article_id}?lang=en|es` returns formatted paragraphs extracted from the selected PDF variant.
 - `POST /api/score` scores either `{ "url": "..." }` or `{ "product": { ... } }`.
+
+Both search endpoints return a `provider_status` list so blocked, failing, or
+empty providers are visible instead of looking like "no products found":
+
+```json
+[
+  {"provider": "DIA", "outcome": "ok", "products": 10},
+  {"provider": "Mercadona", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
+]
+```
+
+`outcome` is one of `ok`, `empty`, `blocked` (HTTP 403/429 or a captcha/anti-bot
+page), or `error` (another exception). `products` counts products available to
+the scoring pipeline: search results for `/api/search`, and products that were
+fetched and passed the evidence guardrail for `/api/search-score`. A `cause` is
+included for non-`ok` outcomes; an `ok` outcome may also carry a `cause` when
+some provider categories failed but others still returned usable products
+(reported as `partial failure: ...`). Failed providers are excluded from scored
+rows but always appear in the summary.
 
 Product payloads returned by the scoring API expose standardized source quality fields:
 

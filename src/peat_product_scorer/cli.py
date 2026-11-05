@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import requests
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -11,7 +12,10 @@ from .models import Product
 from .nutrition import normalize_nutrition, split_ingredients
 from .scorer import score_product, search_and_score
 from .supermarkets import fetch_product, search_products
-from .supermarkets.contract import ProviderEvidenceError
+from .supermarkets.contract import (
+    ProviderEvidenceError,
+    classify_provider_failure,
+)
 from .supermarkets.fetcher import available_search_providers
 
 app = typer.Typer(no_args_is_help=True)
@@ -36,6 +40,10 @@ def score_url(url: str) -> None:
         raise typer.Exit(code=1) from exc
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except requests.RequestException as exc:
+        outcome, cause = classify_provider_failure(exc)
+        console.print(f"[red]Provider fetch failed ({outcome}): {cause}[/red]")
         raise typer.Exit(code=1) from exc
     _print_score(score_product(product))
 

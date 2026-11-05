@@ -6,7 +6,26 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from ..models import Product, SearchResult
+from ..models import (
+    Product,
+    ProviderOutcomeStatus,
+    ProviderSearchOutcome,
+)
+
+BLOCKED_STATUS_CODES = frozenset({403, 429})
+ANTI_BOT_MARKERS = (
+    "captcha",
+    "access denied",
+    "unusual traffic",
+    "are you a robot",
+    "bot detected",
+    "request blocked",
+    # CDN vendor names alone are not blocking signals: healthy storefronts
+    # routinely load Cloudflare analytics and Akamai-hosted assets. Only match
+    # dedicated challenge machinery, alongside the explicit denial text above.
+    "/cdn-cgi/challenge-platform/",
+    "_cf_chl_opt",
+)
 
 # Guardrail keys are matched exactly. Nutrition normalization stores total
 # carbohydrate as carbohydrate_g; that key does not satisfy carbs_g.
@@ -68,6 +87,37 @@ def _is_finite_number(value: object) -> bool:
     return math.isfinite(value)
 
 
+def blocked_cause_for_response(response: object) -> str | None:
+    """Return a blocked cause when a response shows HTTP or anti-bot blocking."""
+    status_code = getattr(response, "status_code", None)
+    if status_code in BLOCKED_STATUS_CODES:
+        return f"HTTP {status_code}"
+    try:
+        text = str(getattr(response, "text", "") or "")
+    except Exception:
+        text = ""
+    lowered = text.lower()
+    for marker in ANTI_BOT_MARKERS:
+        if marker in lowered:
+            return f"captcha/anti-bot marker: {marker}"
+    return None
+
+
+def classify_provider_failure(
+    error: BaseException,
+    *,
+    response: object | None = None,
+) -> tuple[ProviderOutcomeStatus, str]:
+    """Classify a provider exception as ``blocked`` or ``error`` with its cause."""
+    resolved_response = response if response is not None else getattr(error, "response", None)
+    blocked_cause = blocked_cause_for_response(resolved_response)
+    if blocked_cause:
+        return "blocked", blocked_cause
+    message = str(error).strip()
+    cause = f"{type(error).__name__}: {message}" if message else type(error).__name__
+    return "error", cause
+
+
 def validate_provider_url(url: str, domains: tuple[str, ...]) -> None:
     """Reject URLs that escape the provider allowlist or use unsafe components."""
     parsed = urlparse(url)
@@ -122,8 +172,8 @@ class ProductProvider(ABC):
         """Domains the provider is allowed to search and fetch."""
 
     @abstractmethod
-    def search(self, query: str, max_results: int = 10) -> list[SearchResult]:
-        """Return product search results for a query."""
+    def search(self, query: str, max_results: int = 10) -> ProviderSearchOutcome:
+        """Return product search results and their structured outcome for a query."""
 
     @abstractmethod
     def fetch(self, url: str, timeout: int = 20) -> Product:
