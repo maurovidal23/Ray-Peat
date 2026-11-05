@@ -139,11 +139,11 @@ class RequireEvidenceTests(unittest.TestCase):
         product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:3], ingredients=["leche"])
 
         with self.assertRaises(ProviderEvidenceError) as context:
-            require_evidence(product, source="DIA")
+            require_evidence(product, source="Eroski")
 
         self.assertEqual(
             str(context.exception),
-            "DIA evidence incomplete: missing saturated_fat_g, salt_g, carbs_g.",
+            "Eroski evidence incomplete: missing saturated_fat_g, salt_g, carbs_g.",
         )
         self.assertEqual(context.exception.missing, GUARDRAIL_NUTRIENT_KEYS[3:])
 
@@ -151,33 +151,33 @@ class RequireEvidenceTests(unittest.TestCase):
 class UrlValidationTests(unittest.TestCase):
     def test_accepts_allowlisted_hosts_and_standard_ports(self) -> None:
         urls = (
-            "https://dia.es/p/1",
-            "https://www.dia.es/p/1",
-            "http://www.dia.es:80/p/1",
-            "https://www.dia.es:443/p/1",
-            "https://www.dia.es./p/1",
+            "https://eroski.es/p/1",
+            "https://www.eroski.es/p/1",
+            "http://www.eroski.es:80/p/1",
+            "https://www.eroski.es:443/p/1",
+            "https://www.eroski.es./p/1",
         )
 
         for url in urls:
             with self.subTest(url=url):
-                validate_provider_url(url, ("dia.es",))
+                validate_provider_url(url, ("eroski.es",))
 
     def test_rejects_unsafe_url_components(self) -> None:
         urls = (
-            "ftp://www.dia.es/p/1",
+            "ftp://www.eroski.es/p/1",
             "https:///p/1",
-            "https://user:password@www.dia.es/p/1",
-            "https://www.dia.es:8443/p/1",
-            "https://www.dia.es:not-a-port/p/1",
+            "https://user:password@www.eroski.es/p/1",
+            "https://www.eroski.es:8443/p/1",
+            "https://www.eroski.es:not-a-port/p/1",
             "https://169.254.169.254/latest/meta-data/",
-            "https://www.dia.es.attacker.example/p/1",
-            "https://evil-dia.es/p/1",
-            "https://www.carrefour.es/supermercado/p/1",
+            "https://www.eroski.es.attacker.example/p/1",
+            "https://evil-eroski.es/p/1",
+            "https://www.example.com/supermercado/p/1",
         )
 
         for url in urls:
             with self.subTest(url=url), self.assertRaises(ValueError):
-                validate_provider_url(url, ("dia.es",))
+                validate_provider_url(url, ("eroski.es",))
 
 
 class ProviderContractTests(unittest.TestCase):
@@ -185,13 +185,13 @@ class ProviderContractTests(unittest.TestCase):
         product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4], ingredients=["leche"])
         provider = _FakeProvider(product)
 
-        self.assertIs(provider.fetch_and_validate("https://www.dia.es/p/1"), product)
+        self.assertIs(provider.fetch_and_validate("https://www.eroski.es/p/1"), product)
 
     def test_fetch_and_validate_forwards_timeout(self) -> None:
         product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4], ingredients=["leche"])
         provider = _FakeProvider(product)
 
-        provider.fetch_and_validate("https://www.dia.es/p/1", timeout=7)
+        provider.fetch_and_validate("https://www.eroski.es/p/1", timeout=7)
 
         self.assertEqual(provider.timeouts, [7])
 
@@ -200,7 +200,7 @@ class ProviderContractTests(unittest.TestCase):
         provider = _FakeProvider(product)
 
         with self.assertRaises(ProviderEvidenceError) as context:
-            provider.fetch_and_validate("https://www.dia.es/p/1")
+            provider.fetch_and_validate("https://www.eroski.es/p/1")
 
         message = str(context.exception)
         self.assertIn("Fake evidence incomplete", message)
@@ -212,17 +212,17 @@ class ProviderContractTests(unittest.TestCase):
         provider = _FakeProvider(product)
 
         with self.assertRaises(ValueError):
-            provider.fetch_and_validate("https://www.carrefour.es/supermercado/p/1")
+            provider.fetch_and_validate("https://www.example.com/supermercado/p/1")
 
         self.assertEqual(provider.timeouts, [])
 
     def test_fetch_and_validate_rejects_unsafe_urls_before_fetch(self) -> None:
         product = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4], ingredients=["leche"])
         urls = (
-            "https://user:password@www.dia.es/p/1",
-            "https://www.dia.es:8443/p/1",
+            "https://user:password@www.eroski.es/p/1",
+            "https://www.eroski.es:8443/p/1",
             "https://169.254.169.254/latest/meta-data/",
-            "https://www.dia.es.attacker.example/p/1",
+            "https://www.eroski.es.attacker.example/p/1",
         )
 
         for url in urls:
@@ -239,7 +239,7 @@ class ProviderContractTests(unittest.TestCase):
     def test_provider_missing_required_methods_cannot_be_instantiated(self) -> None:
         class IncompleteProvider(ProductProvider):
             name = "Incomplete"
-            domains = ("dia.es",)
+            domains = ("eroski.es",)
 
             def search(self, query: str, max_results: int = 10) -> list[SearchResult]:
                 return []
@@ -250,7 +250,7 @@ class ProviderContractTests(unittest.TestCase):
 
 class _FakeProvider(ProductProvider):
     name = "Fake"
-    domains = ("dia.es",)
+    domains = ("eroski.es",)
 
     def __init__(self, product: Product) -> None:
         self.product = product
@@ -275,7 +275,7 @@ class FetchProductGuardrailTests(unittest.TestCase):
             ),
             self.assertRaises(ProviderEvidenceError) as context,
         ):
-            fetcher.fetch_product("https://www.dia.es/p/1")
+            fetcher.fetch_product("https://www.eroski.es/p/1")
 
         self.assertEqual(context.exception.missing, GUARDRAIL_NUTRIENT_KEYS[3:])
 
@@ -289,23 +289,11 @@ class FetchProductGuardrailTests(unittest.TestCase):
             "peat_product_scorer.supermarkets.fetcher._fetch_product",
             return_value=complete,
         ):
-            self.assertIs(fetcher.fetch_product("https://www.dia.es/p/1"), complete)
+            self.assertIs(fetcher.fetch_product("https://www.eroski.es/p/1"), complete)
 
     def test_every_provider_path_validates_before_returning(self) -> None:
         partial = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:3], ingredients=["leche"])
         cases = (
-            (
-                "Mercadona",
-                "https://tienda.mercadona.es/product/123/leche",
-                "_fetch_mercadona_product",
-            ),
-            ("DIA", "https://www.dia.es/leche/p/608P6", "_fetch_dia_product"),
-            (
-                "Alcampo",
-                "https://www.compraonline.alcampo.es/products/1",
-                "_fetch_alcampo_product",
-            ),
-            ("Consum", "https://tienda.consum.es/es/p/leche/123", "_fetch_consum_product"),
             (
                 "Eroski",
                 "https://supermercado.eroski.es/productdetail/123",
@@ -348,9 +336,9 @@ class CliEvidenceTests(unittest.TestCase):
     def test_score_url_reports_evidence_failure_without_a_traceback(self) -> None:
         with patch(
             "peat_product_scorer.cli.fetch_product",
-            side_effect=ProviderEvidenceError("DIA evidence incomplete: missing salt_g."),
+            side_effect=ProviderEvidenceError("Eroski evidence incomplete: missing salt_g."),
         ):
-            result = CliRunner().invoke(cli_app, ["score-url", "https://www.dia.es/p/1"])
+            result = CliRunner().invoke(cli_app, ["score-url", "https://www.eroski.es/p/1"])
 
         self.assertEqual(result.exit_code, 1)
         self.assertIn("evidence incomplete", result.output)
@@ -359,11 +347,11 @@ class CliEvidenceTests(unittest.TestCase):
 class SearchAndScoreEvidenceTests(unittest.TestCase):
     def test_search_tile_metadata_never_produces_a_score(self) -> None:
         tile = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="queso",
-            display_name="Queso en DIA",
-            product_id="search-dia-queso",
-            url="https://www.dia.es/search?q=queso",
+            display_name="Queso en Eroski",
+            product_id="search-eroski-queso",
+            url="https://www.eroski.es/search?q=queso",
             category="Queso",
         )
 
@@ -371,7 +359,7 @@ class SearchAndScoreEvidenceTests(unittest.TestCase):
             patch("peat_product_scorer.scorer.search_products", return_value=[tile]),
             patch("peat_product_scorer.scorer.fetch_product") as fetch_mock,
         ):
-            results = search_and_score("queso", providers=["DIA"])
+            results = search_and_score("queso", providers=["Eroski"])
 
         fetch_mock.assert_not_called()
         self.assertEqual(len(results), 1)
@@ -380,11 +368,11 @@ class SearchAndScoreEvidenceTests(unittest.TestCase):
 
     def test_search_and_score_rejects_unvalidated_partial_product(self) -> None:
         result_row = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche incompleta",
             product_id="partial",
-            url="https://www.dia.es/p/partial",
+            url="https://www.eroski.es/p/partial",
         )
         partial = _product(nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:3], ingredients=["leche"])
 
@@ -400,18 +388,18 @@ class SearchAndScoreEvidenceTests(unittest.TestCase):
 
     def test_guardrail_failure_yields_no_score_and_sorts_last(self) -> None:
         incomplete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche incompleta",
             product_id="incomplete",
-            url="https://www.dia.es/p/incomplete",
+            url="https://www.eroski.es/p/incomplete",
         )
         complete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche completa",
             product_id="complete",
-            url="https://www.dia.es/p/complete",
+            url="https://www.eroski.es/p/complete",
         )
         complete_product = _product(
             nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4],
@@ -442,18 +430,18 @@ class SearchAndScoreEvidenceTests(unittest.TestCase):
 
     def test_unscored_rows_sort_last_by_name(self) -> None:
         incomplete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Aaa leche incompleta",
             product_id="incomplete",
-            url="https://www.dia.es/p/incomplete",
+            url="https://www.eroski.es/p/incomplete",
         )
         complete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Zzz leche completa",
             product_id="complete",
-            url="https://www.dia.es/p/complete",
+            url="https://www.eroski.es/p/complete",
         )
         complete_product = _product(
             nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4],
@@ -481,18 +469,18 @@ class SearchAndScoreEvidenceTests(unittest.TestCase):
 
     def test_min_score_filter_excludes_unscored_rows(self) -> None:
         incomplete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche incompleta",
             product_id="incomplete",
-            url="https://www.dia.es/p/incomplete",
+            url="https://www.eroski.es/p/incomplete",
         )
         complete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche completa",
             product_id="complete",
-            url="https://www.dia.es/p/complete",
+            url="https://www.eroski.es/p/complete",
         )
         complete_product = _product(
             nutrient_keys=GUARDRAIL_NUTRIENT_KEYS[:4],

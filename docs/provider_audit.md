@@ -196,18 +196,18 @@ Product URL hostname is not a supported supermarket.
 
 ## Keep / remove decision
 
-This audit does **not** remove adapters itself. It feeds the removal issue #16;
-the registry remains unchanged here so the decision and its evidence stay
-reviewable together.
+Issue #16 applied this decision: the registry now contains **Eroski** only. The
+table and evidence below are retained as the reviewable record of why each
+provider was kept or removed.
 
 | Provider | Classification |
 | --- | --- |
 | **Eroski** | keep |
-| **DIA** | remove (flagged for issue #16; blocked by Akamai HTTP 403) |
-| **Open Food Facts** | remove (flagged for issue #16; degraded upstream search) |
-| **Mercadona** | remove (flagged for issue #16) |
-| **Alcampo** | remove (flagged for issue #16) |
-| **Consum** | remove (flagged for issue #16) |
+| **DIA** | remove (issue #16; blocked by Akamai HTTP 403) |
+| **Open Food Facts** | remove (issue #16; degraded upstream search) |
+| **Mercadona** | remove (issue #16; missing guardrail nutrients) |
+| **Alcampo** | remove (issue #16; blocked by AWS WAF) |
+| **Consum** | remove (issue #16; no ingredient or nutrition evidence) |
 | **Carrefour España** | remove (already removed) |
 | **El Corte Inglés** | remove (already removed) |
 | **Lidl Spain** | remove (already removed) |
@@ -223,9 +223,8 @@ reviewable together.
 
 **Keep:** Eroski.
 
-**Remove:** DIA, Open Food Facts, Mercadona, Alcampo, and Consum (currently
-registered but broken), plus all previously removed providers above. Issue #16
-should consume this list.
+**Remove:** DIA, Open Food Facts, Mercadona, Alcampo, and Consum, plus all
+previously removed providers above. This list has been applied by issue #16.
 
 ## Reproduction
 

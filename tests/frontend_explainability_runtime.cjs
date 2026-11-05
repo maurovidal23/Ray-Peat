@@ -89,7 +89,7 @@ for (const scenario of ['422', '502', 'fallback-failure', 'null']) {
   test(`submission ${scenario} clears stale score and displays provider error`, async () => {
     const { context, node, run } = setup();
     const detail = 'Provider evidence incomplete <img src=x onerror=alert(1)>';
-    node('productUrl').value = scenario === 'fallback-failure' ? 'https://www.dia.es/p/123' : 'https://example.com/product';
+    node('productUrl').value = scenario === 'fallback-failure' ? 'https://example.com/product' : 'https://example.com/product';
     node('scoreValue').textContent = '88';
     node('componentList').append(new Element());
     let calls = 0;
@@ -131,20 +131,20 @@ test('provider status summary is data-driven and tolerates an absent field', () 
   assert.equal(run('providerStatusSummary(undefined, "all")'), '');
   assert.equal(run('providerStatusSummary([], "all")'), '');
   assert.equal(
-    run('providerStatusSummary([{provider: "DIA", outcome: "ok", products: 2}], "all")'),
+    run('providerStatusSummary([{provider: "Eroski", outcome: "ok", products: 2}], "all")'),
     '',
   );
   assert.equal(
-    run('providerStatusSummary([{provider: "Mercadona", outcome: "blocked", products: 0, cause: "HTTP 403"}], "Mercadona")'),
-    'Mercadona: blocked (HTTP 403)',
+    run('providerStatusSummary([{provider: "Manual", outcome: "blocked", products: 0, cause: "HTTP 403"}], "Manual")'),
+    'Manual: blocked (HTTP 403)',
   );
   assert.equal(
     run(`providerStatusSummary([
-      {provider: "DIA", outcome: "ok", products: 2},
-      {provider: "Mercadona", outcome: "blocked", products: 0, cause: "HTTP 403"},
-      {provider: "Alcampo", outcome: "empty", products: 0},
+      {provider: "Eroski", outcome: "ok", products: 2},
+      {provider: "Manual", outcome: "blocked", products: 0, cause: "HTTP 403"},
+      {provider: "Test", outcome: "empty", products: 0},
     ], "all")`),
-    'Mercadona: blocked (HTTP 403); Alcampo: empty',
+    'Manual: blocked (HTTP 403); Test: empty',
   );
 });
 
@@ -160,14 +160,14 @@ test('best-products message renders per-provider status when no products are sco
       total: 0,
       results: [],
       provider_status: [
-        { provider: 'Mercadona', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
-        { provider: 'DIA', outcome: 'empty', products: 0 },
+        { provider: 'Manual', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
+        { provider: 'Eroski', outcome: 'empty', products: 0 },
       ],
     }),
   });
   await run('submitBestProducts({preventDefault() {}})');
-  assert.match(node('bestProductsMessage').textContent, /Mercadona: blocked \(HTTP 403\)/);
-  assert.match(node('bestProductsMessage').textContent, /DIA: empty/);
+  assert.match(node('bestProductsMessage').textContent, /Manual: blocked \(HTTP 403\)/);
+  assert.match(node('bestProductsMessage').textContent, /Eroski: empty/);
 });
 
 test('best-products message reports partial provider failure while results are shown', async () => {
@@ -182,12 +182,12 @@ test('best-products message reports partial provider failure while results are s
       total: 1,
       results: [{ score: { score: 80, band: 'Good', product: { name: 'Leche entera' } }, search: { display_name: 'Leche entera' } }],
       provider_status: [
-        { provider: 'DIA', outcome: 'ok', products: 1 },
-        { provider: 'Mercadona', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
+        { provider: 'Eroski', outcome: 'ok', products: 1 },
+        { provider: 'Manual', outcome: 'blocked', products: 0, cause: 'HTTP 403' },
       ],
     }),
   });
   await run('submitBestProducts({preventDefault() {}})');
   assert.equal(node('bestProductsList').children.length, 1);
-  assert.match(node('bestProductsMessage').textContent, /Mercadona: blocked \(HTTP 403\)/);
+  assert.match(node('bestProductsMessage').textContent, /Manual: blocked \(HTTP 403\)/);
 });

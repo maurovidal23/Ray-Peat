@@ -44,8 +44,8 @@ class WebAppTests(unittest.TestCase):
             json={
                 "product": {
                     "name": "Leche incompleta",
-                    "source": "DIA",
-                    "url": "https://www.dia.es/p/1",
+                    "source": "Eroski",
+                    "url": "https://www.eroski.es/p/1",
                     "ingredients": "leche",
                     "nutrition": {"grasas": "3 g"},
                 }
@@ -63,8 +63,8 @@ class WebAppTests(unittest.TestCase):
             json={
                 "product": {
                     "name": "Leche entera",
-                    "source": "DIA",
-                    "url": "https://www.dia.es/p/1",
+                    "source": "Eroski",
+                    "url": "https://www.eroski.es/p/1",
                     "ingredients": "leche entera",
                     "nutrition": {
                         "azucares": "4.7 g",
@@ -85,7 +85,7 @@ class WebAppTests(unittest.TestCase):
             json={
                 "product": {
                     "name": "Leche incompleta",
-                    "source": "DIA",
+                    "source": "Eroski",
                     "ingredients": "leche",
                     "nutrition": {"grasas": "3 g"},
                 }
@@ -101,7 +101,7 @@ class WebAppTests(unittest.TestCase):
             json={
                 "product": {
                     "name": "Leche entera",
-                    "source": "DIA",
+                    "source": "Eroski",
                     "ingredients": "leche entera",
                     "nutrition": {
                         "azucares": "4.7 g",
@@ -116,17 +116,17 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("score", response.json())
 
-    def test_dia_guardrail_error_stays_unscored_after_client_enrichment(self) -> None:
+    def test_guardrail_error_stays_unscored_after_client_enrichment(self) -> None:
         incomplete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Leche incompleta",
             product_id="incomplete",
-            url="https://www.dia.es/p/incomplete",
+            url="https://www.eroski.es/p/incomplete",
         )
 
         def fetch(url: str, timeout: int = 10) -> Product:
-            raise ProviderEvidenceError("DIA evidence incomplete: missing salt_g.")
+            raise ProviderEvidenceError("Eroski evidence incomplete: missing salt_g.")
 
         with (
             patch("peat_product_scorer.scorer.search_products", return_value=[incomplete]),
@@ -140,14 +140,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(search_response.status_code, 200)
         self.assertNotIn("score", search_response.json()["results"][0])
 
-        # The DIA browser enrichment posts the provider payload back to /api/score.
+        # The Eroski browser enrichment posts the provider payload back to /api/score.
         enrichment_response = self.client.post(
             "/api/score",
             json={
                 "product": {
                     "name": "Leche incompleta",
-                    "source": "DIA",
-                    "url": "https://www.dia.es/p/incomplete",
+                    "source": "Eroski",
+                    "url": "https://www.eroski.es/p/incomplete",
                     "ingredients": "leche",
                     "nutrition": {"grasas": "3 g"},
                 }
@@ -200,7 +200,7 @@ class WebAppTests(unittest.TestCase):
         missing = self.client.post("/api/score", json={})
         both = self.client.post(
             "/api/score",
-            json={"url": "https://www.dia.es/p/1", "product": {"name": "Test"}},
+            json={"url": "https://www.eroski.es/p/1", "product": {"name": "Test"}},
         )
 
         self.assertEqual(missing.status_code, 422)
@@ -208,25 +208,25 @@ class WebAppTests(unittest.TestCase):
 
     def test_normalizes_bare_product_urls(self) -> None:
         self.assertEqual(
-            _normalize_product_url("www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"),
-            "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
+            _normalize_product_url("www.eroski.es/productdetail/18672295-leche-entera"),
+            "https://www.eroski.es/productdetail/18672295-leche-entera",
         )
         self.assertEqual(
-            _normalize_product_url(" https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6 "),
-            "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6",
+            _normalize_product_url(" https://www.eroski.es/productdetail/18672295-leche-entera "),
+            "https://www.eroski.es/productdetail/18672295-leche-entera",
         )
 
     def test_score_endpoint_does_not_return_a_score_for_incomplete_evidence(self) -> None:
         with patch(
             "peat_product_scorer.web_app.fetch_product",
             side_effect=ProviderEvidenceError(
-                "DIA evidence incomplete: missing salt_g.",
+                "Eroski evidence incomplete: missing salt_g.",
                 missing=("salt_g",),
             ),
         ):
             response = self.client.post(
                 "/api/score",
-                json={"url": "https://www.dia.es/p/608P6"},
+                json={"url": "https://www.eroski.es/productdetail/18672295-leche-entera"},
             )
 
         self.assertEqual(response.status_code, 502)
@@ -234,15 +234,15 @@ class WebAppTests(unittest.TestCase):
         self.assertNotIn("score", data)
         self.assertIn("evidence incomplete", data["detail"])
 
-    def test_score_endpoint_accepts_dia_url_payload(self) -> None:
-        url = "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"
+    def test_score_endpoint_accepts_eroski_url_payload(self) -> None:
+        url = "https://supermercado.eroski.es/es/productdetail/18672295-leche-entera"
         product = Product(
-            name="Leche entera Dia Lactea pack 6 x 1 L",
-            source="DIA",
+            name="Leche entera Eroski pack 6 x 1 L",
+            source="Eroski",
             url=url,
-            brand="Dia Lactea",
+            brand="Eroski",
             ingredient_text="Leche entera de vaca",
-            ingredient_source="dia.ingredients.text",
+            ingredient_source="eroski.feature.Ingredientes",
             ingredients=["Leche entera de vaca"],
             nutrition_per_100g={"energy_kcal": 63.0, "fat_g": 3.6},
             missing_fields=[],
@@ -254,15 +254,15 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         fetch_mock.assert_called_once_with(url)
         data = response.json()
-        self.assertEqual(data["product"]["source"], "DIA")
+        self.assertEqual(data["product"]["source"], "Eroski")
         self.assertEqual(data["product"]["missing_fields"], [])
 
     def test_score_endpoint_accepts_exact_and_subdomain_supermarket_hosts(self) -> None:
         urls = [
-            "https://dia.es/p/1",
-            "https://www.dia.es/p/1",
-            "https://tienda.consum.es/es/p/1",
-            "https://www.compraonline.alcampo.es/products/1",
+            "https://eroski.es/p/1",
+            "https://www.eroski.es/p/1",
+            "https://supermercado.eroski.es/es/p/1",
+            "https://supermercado.eroski.es/products/1",
         ]
         product = Product(name="Test", ingredients=[], nutrition_per_100g={})
 
@@ -281,12 +281,12 @@ class WebAppTests(unittest.TestCase):
             "http://169.254.169.254/latest/meta-data/",
             "http://10.0.0.4/internal",
             "file:///etc/passwd",
-            "ftp://www.dia.es/file",
-            "https://evil.example/?next=dia.es",
-            "https://dia.es.evil.example/p/1",
-            "https://evil-dia.es/p/1",
-            "https://user:password@www.dia.es/p/1",
-            "https://www.dia.es:8443/p/1",
+            "ftp://www.eroski.es/file",
+            "https://evil.example/?next=eroski.es",
+            "https://eroski.es.evil.example/p/1",
+            "https://evil-eroski.es/p/1",
+            "https://user:password@www.eroski.es/p/1",
+            "https://www.eroski.es:8443/p/1",
         ]
 
         with patch("peat_product_scorer.web_app.fetch_product") as fetch_mock:
@@ -299,7 +299,7 @@ class WebAppTests(unittest.TestCase):
 
     def test_score_endpoint_allows_only_standard_explicit_ports(self) -> None:
         product = Product(name="Test", ingredients=[], nutrition_per_100g={})
-        urls = ["http://www.dia.es:80/p/1", "https://www.dia.es:443/p/1"]
+        urls = ["http://www.eroski.es:80/p/1", "https://www.eroski.es:443/p/1"]
 
         with patch("peat_product_scorer.web_app.fetch_product", return_value=product) as fetch_mock:
             for url in urls:
@@ -315,7 +315,7 @@ class WebAppTests(unittest.TestCase):
         connectors = response.json()["connectors"]
         self.assertEqual(
             [connector["name"] for connector in connectors],
-            ["Mercadona", "DIA", "Alcampo", "Consum", "Eroski", "Open Food Facts"],
+            ["Eroski"],
         )
         self.assertNotIn("partial", response.text.lower())
 
@@ -324,38 +324,33 @@ class WebAppTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         providers = response.json()["providers"]
-        self.assertEqual(
-            providers,
-            ["all", "Mercadona", "DIA", "Alcampo", "Consum", "Eroski", "Open Food Facts"],
-        )
-        for removed_provider in ("Bon Preu / Esclat", "Esclat", "Carrefour Espana", "El Corte Ingles", "Lidl"):
-            self.assertNotIn(removed_provider, providers)
+        self.assertEqual(providers, ["all", "Eroski"])
 
     def test_search_endpoint_passes_selected_provider(self) -> None:
         with patch("peat_product_scorer.web_app.search_products", return_value=[]) as search_mock:
             response = self.client.post(
                 "/api/search",
-                json={"q": "leche", "max_results": 5, "provider": "Alcampo"},
+                json={"q": "leche", "max_results": 5, "provider": "Eroski"},
             )
 
         self.assertEqual(response.status_code, 200)
-        search_mock.assert_called_once_with("leche", max_results=5, providers=["Alcampo"])
-        self.assertEqual(response.json()["provider"], "Alcampo")
+        search_mock.assert_called_once_with("leche", max_results=5, providers=["Eroski"])
+        self.assertEqual(response.json()["provider"], "Eroski")
 
     def test_search_score_endpoint_keeps_unscored_rows_last_without_a_score(self) -> None:
         incomplete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Aaa leche incompleta",
             product_id="incomplete",
-            url="https://www.dia.es/p/incomplete",
+            url="https://www.eroski.es/p/incomplete",
         )
         complete = SearchResult(
-            source="DIA",
+            source="Eroski",
             query="leche",
             display_name="Zzz leche completa",
             product_id="complete",
-            url="https://www.dia.es/p/complete",
+            url="https://www.eroski.es/p/complete",
         )
         complete_product = Product(
             name="Leche entera",
@@ -427,8 +422,6 @@ class WebAppTests(unittest.TestCase):
         )
         self.assertIsNotNone(provider_select)
         self.assertNotIn("<option", provider_select.group("body"))
-        for removed_provider in ("Bon Preu / Esclat", "Esclat", "Carrefour Espana", "El Corte Ingles", "Lidl"):
-            self.assertNotIn(removed_provider, response.text)
 
     def test_articles_endpoint_lists_pdf_derived_papers(self) -> None:
         response = self.client.get("/api/articles")
@@ -530,11 +523,9 @@ class WebAppTests(unittest.TestCase):
         spanish = self.client.get("/method-es").text
 
         self.assertIn("Provider guardrail", english)
-        self.assertIn("DIA", english)
-        self.assertIn("Mercadona", english)
+        self.assertIn("Eroski", english)
         self.assertIn("Protección de proveedores", spanish)
-        self.assertIn("DIA", spanish)
-        self.assertIn("Mercadona", spanish)
+        self.assertIn("Eroski", spanish)
 
         from peat_product_scorer.supermarkets.fetcher import RELIABLE_SEARCH_PROVIDERS
 

@@ -12,27 +12,6 @@ from peat_product_scorer.supermarkets.adapters import ADAPTERS
 
 AUDIT_PATH = Path(__file__).resolve().parents[1] / "docs" / "provider_audit.md"
 
-ISSUE_PROVIDERS = (
-    "DIA",
-    "Mercadona",
-    "Alcampo",
-    "Eroski",
-    "Consum",
-    "Carrefour España",
-    "El Corte Inglés",
-    "Lidl Spain",
-    "Aldi ES",
-    "Spar ES",
-    "Hipercor",
-    "Gadis Online",
-    "Covirán",
-    "Caprabo",
-    "Condis",
-    "Froiz",
-    "Bon Preu / Esclat",
-    "Open Food Facts",
-)
-
 
 class ProviderAuditDocumentTests(unittest.TestCase):
     @classmethod
@@ -41,13 +20,6 @@ class ProviderAuditDocumentTests(unittest.TestCase):
 
     def test_audit_document_exists(self) -> None:
         self.assertTrue(AUDIT_PATH.is_file())
-
-    def test_status_table_lists_every_issue_provider(self) -> None:
-        status_table = self.document.split("## Structured live matrix", 1)[0]
-
-        for provider in ISSUE_PROVIDERS:
-            with self.subTest(provider=provider):
-                self.assertIn(f"| **{provider}** |", status_table)
 
     def test_every_registered_adapter_appears_in_the_audit_table(self) -> None:
         status_table = self.document.split("## Structured live matrix", 1)[0]
@@ -76,7 +48,22 @@ class ProviderAuditDocumentTests(unittest.TestCase):
                 )
                 self.assertTrue(decision.startswith(("keep", "remove")))
 
-    def test_keep_list_is_a_subset_of_registered_providers(self) -> None:
+    def test_no_removed_provider_remains_registered(self) -> None:
+        classification_section = self.document.split("## Keep / remove decision", 1)[1]
+        classification_section = classification_section.split("**Keep:**", 1)[0]
+        classifications = dict(
+            re.findall(
+                r"^\| \*\*(?P<provider>[^*]+)\*\* \| (?P<decision>[^|]+) \|$",
+                classification_section,
+                flags=re.MULTILINE,
+            )
+        )
+
+        remove = {provider for provider, decision in classifications.items() if decision.startswith("remove")}
+        registered = {adapter.name for adapter in ADAPTERS}
+        self.assertEqual(remove & registered, set())
+
+    def test_registered_providers_match_the_audit_keep_list(self) -> None:
         classification_section = self.document.split("## Keep / remove decision", 1)[1]
         classification_section = classification_section.split("**Keep:**", 1)[0]
         classifications = dict(
@@ -89,17 +76,14 @@ class ProviderAuditDocumentTests(unittest.TestCase):
 
         keep = {provider for provider, decision in classifications.items() if decision.startswith("keep")}
         registered = {adapter.name for adapter in ADAPTERS}
-        self.assertTrue(
-            keep <= registered,
-            f"audit keep list contains providers missing from adapters.py: {keep - registered}",
-        )
+        self.assertEqual(keep, registered)
 
 
 class RemovedProviderCliTests(unittest.TestCase):
     def test_search_score_rejects_a_removed_provider(self) -> None:
         result = CliRunner().invoke(
             cli_app,
-            ["search-score", "leche", "--source", "Carrefour"],
+            ["search-score", "leche", "--source", "Removed Store"],
         )
 
         self.assertEqual(result.exit_code, 1)
@@ -110,7 +94,7 @@ class RemovedProviderCliTests(unittest.TestCase):
     def test_score_url_rejects_a_removed_provider_domain(self) -> None:
         result = CliRunner().invoke(
             cli_app,
-            ["score-url", "https://www.carrefour.es/supermercado/el-producto/123"],
+            ["score-url", "https://www.example.com/supermercado/el-producto/123"],
         )
 
         self.assertEqual(result.exit_code, 1)
@@ -124,7 +108,7 @@ class RemovedProviderCliTests(unittest.TestCase):
         with patch("peat_product_scorer.cli.fetch_product", side_effect=blocked):
             result = CliRunner().invoke(
                 cli_app,
-                ["score-url", "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/608P6"],
+                ["score-url", "https://supermercado.eroski.es/productdetail/18672295"],
             )
 
         self.assertEqual(result.exit_code, 1)

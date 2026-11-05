@@ -8,9 +8,9 @@ removed because they could not meet that contract.
 > was audited against live provider responses. Only **Eroski** passed the
 > recheck. DIA is blocked by Akamai (HTTP 403), Open Food Facts search is
 > intermittent and returns query-irrelevant products, and Mercadona, Alcampo,
-> and Consum fail the evidence guardrail. DIA, Open Food Facts, Mercadona,
-> Alcampo, and Consum are flagged for removal in issue #16. The full status
-> table, evidence snippets, and keep/remove decision live in
+> and Consum fail the evidence guardrail. Issue #16 removed those providers, so
+> the registry now contains **Eroski** only. The full status table, evidence
+> snippets, and keep/remove decision live in
 > [Provider audit](./provider_audit.md).
 
 ## Shared provider contract
@@ -24,9 +24,8 @@ The connector layer applies one contract across all registered providers. The
 - `fetch_and_validate(url, timeout)` rejects URLs outside the provider's allowed
   domains and then requires complete product evidence before returning.
 
-Open Food Facts implements `ProductProvider` directly. The supermarket connectors
-are dispatched through `fetcher.py` and are validated by the same URL and
-evidence checks before they return a product.
+The remaining Eroski connector is dispatched through `fetcher.py` and is
+validated by the same URL and evidence checks before it returns a product.
 
 The evidence guardrail is intentionally strict:
 
@@ -36,8 +35,8 @@ The evidence guardrail is intentionally strict:
 - Missing, blank, non-numeric, `NaN`, and infinite values do not count as
   evidence. Zero is a valid value.
 - Guardrail keys are matched exactly. In particular, total carbohydrate stored
-  as `carbohydrate_g` does not satisfy the `carbs_g` slot. Open Food Facts maps
-  `carbohydrates_100g` to both keys explicitly.
+  as `carbohydrate_g` does not satisfy the `carbs_g` slot. A connector must map
+  its source carbohydrate key to both normalized keys explicitly.
 
 The product-URL guardrail applies before fetch where a URL is accepted from a
 user:
@@ -60,8 +59,8 @@ them into a deterministic per-provider `provider_status` summary:
 
 ```json
 [
-  {"provider": "DIA", "outcome": "ok", "products": 10},
-  {"provider": "Mercadona", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
+  {"provider": "Eroski", "outcome": "ok", "products": 10},
+  {"provider": "Example provider", "outcome": "blocked", "products": 0, "cause": "HTTP 403"}
 ]
 ```
 
@@ -93,18 +92,12 @@ unscored and sort after scored products.
 
 | Provider | Allowed domains | Search | Fetch | Guardrail |
 | --- | --- | --- | --- | --- |
-| **Mercadona** | `mercadona.es` | Walks `/api/categories/` and category product lists, matching query tokens against category names and then all query terms against product display names. No free-text search endpoint is used. | Reads `https://tienda.mercadona.es/api/products/{id}`. Ingredients come from `nutrition_information.ingredients`; nutrition comes from `nutrition_information.nutrition_values` or `values`. | URL allowlist plus shared ingredients and 4-of-6 nutrient evidence check. |
-| **DIA** | `dia.es` | Calls `/api/v1/search-back/search?q={query}`. If that yields nothing, reads the server-rendered `/search?q={query}` page and its `vike_pageContext` search data. | Tries `/api/v1/pdp-back/{id}?path={product_path}`. If that fails, reads `vike_pageContext` from the product page, then falls back to the generic HTML/JSON-LD parser. Ingredients come from `dia.ingredients.text`; nutrition comes from `nutritional_info.nutritional_values`. | URL allowlist plus shared ingredients and 4-of-6 nutrient evidence check. |
-| **Alcampo** | `alcampo.es` | Reads `https://www.compraonline.alcampo.es/search?text={query}` and extracts matching `/products/` links. | Reads the server-rendered product page and its `Ingredientes`, `Datos nutricionales`, and `Características` sections. Falls back to the generic HTML/JSON-LD parser for missing product fields. Ingredients come from the `Ingredientes` section. | URL allowlist, redirect checks, plus shared ingredients and 4-of-6 nutrient evidence check. |
-| **Consum** | `consum.es` | Reads `https://tienda.consum.es/es/search?text={query}` and extracts matching `/p/` links. | Reads `https://tienda.consum.es/api/rest/V1.0/catalog/product/code/{code}`. Ingredients come from ingredient-labeled attribute groups; nutrition comes from nutrient/value attribute groups. | URL allowlist plus shared ingredients and 4-of-6 nutrient evidence check. |
 | **Eroski** | `eroski.es` | Reads `https://supermercado.eroski.es/es/search/results/?q={query}` and extracts matching `/productdetail/` links. | Reads the server-rendered product detail page, its `Ingredientes` feature, and its nutrition feature. Falls back to the generic HTML/JSON-LD parser for missing product fields. | URL allowlist, redirect checks, plus shared ingredients and 4-of-6 nutrient evidence check. |
-| **Open Food Facts** | `openfoodfacts.org`, `world.openfoodfacts.org` | Calls `/api/v2/search` with `search_terms`, `countries_tags_en=spain`, a page size, and an explicit field list. Each candidate is converted and checked against the evidence guardrail before it is returned, so incomplete products are dropped from search results. | Reads `/api/v2/product/{code}` for URLs of the form `/product/{code}`. Ingredients come from `ingredients_text_es`; nutriments are mapped to normalized keys, including `carbohydrates_100g` → `carbohydrate_g` and `carbs_g`. | URL allowlist plus shared ingredients and 4-of-6 nutrient evidence check, applied before search results are exposed and again on fetch. |
 
 The default **All providers** search queries only this registered set:
-**Mercadona**, **DIA**, **Alcampo**, **Consum**, **Eroski**, and **Open Food
-Facts**. Individual registered providers can be selected by name. Removed
-providers are not available, even when requested explicitly. The contracts in
-the table describe the implemented adapters; they are not a live availability
+**Eroski**. Individual registered providers can be selected by name. Removed
+providers are not available, even when requested explicitly. The contract in
+the table describes the implemented adapter; it is not a live availability
 guarantee. See [Provider audit](./provider_audit.md) for the 2026-11-04 results.
 
 ## Removed providers
@@ -116,6 +109,11 @@ generic fallback.
 
 | Provider | Domains | Guardrail reason for removal |
 | --- | --- | --- |
+| **DIA** | `dia.es` | Akamai blocked search and product URLs with HTTP 403 in the 2026-11-04/2026-11-05 audit. No fetchable ingredients or nutrition evidence could be verified. |
+| **Mercadona** | `mercadona.es` | The product API's `nutrition_information` exposed only allergens and ingredients. All six guardrail nutrients were absent, so no product could be scored. |
+| **Alcampo** | `alcampo.es` | An AWS WAF challenge blocked search and product pages. No fetchable ingredients or nutrition evidence could be verified. |
+| **Consum** | `consum.es` | The search page was a JS-rendered shell with no product anchors, and sampled product API responses contained no ingredient or nutrition attribute groups. |
+| **Open Food Facts** | `openfoodfacts.org`, `world.openfoodfacts.org` | Upstream search was intermittent (`503`/empty) and returned query-irrelevant catalogue items. Fetched products passed the guardrail, but the provider could not be searched reliably. |
 | **Bon Preu / Esclat** | `bonpreuesclat.cat`, `compraonline.bonpreuesclat.cat` | The partial connector exposed identity, brand, category, size, image, and price but not ingredients or nutrition. Without ingredients and at least four guardrail nutrients it could never provide scoreable evidence. |
 | **Carrefour España** | `carrefour.es` | Simple unauthenticated requests return `403 Forbidden` before app/API product data is available, so no verified fetch path can supply the required evidence. |
 | **El Corte Inglés** | `elcorteingles.es` | Akamai returns access denied for simple unauthenticated requests, blocking the evidence required by the guardrail. |
@@ -156,7 +154,7 @@ historical research context, not active connectors.
 
 ### Bon Preu / Esclat (compraonline.bonpreuesclat.cat)
 - **Status**: Removed. Previously added as a native partial connector.
-- **Stack**: React with server-side rendered `window.__INITIAL_STATE__` (similar pattern to DIA's `vike_pageContext`). Uses GraphQL for data fetching. AWS WAF protection (challenge.js).
+- **Stack**: React with server-side rendered `window.__INITIAL_STATE__` (a page-context state pattern). Uses GraphQL for data fetching. AWS WAF protection (challenge.js).
 - **Search endpoint**: `/products/search?q={query}` redirected to `/search?q={query}` and returned embedded search state.
 - **Product data**: `data.products.productEntities` contained identity fields including `productId`, `retailerProductId`, `name`, `brand`, `categoryPath`, `size`, `image`, and `price`. Search result groups lived under `data.search.catalogue.data.productGroups`.
 - **Removed behavior**: Parsed `__INITIAL_STATE__`, preferred exact UUID or retailer product id matches from the URL, and otherwise selected the first non-featured search result. Ingredients and nutrition were not present in the reachable state, so the products could not satisfy the evidence guardrail.
@@ -194,11 +192,11 @@ historical research context, not active connectors.
 
 ### Open Food Facts (world.openfoodfacts.org)
 - **Type**: Open collaborative database of food products from around the world.
-- **Status**: Active registered provider. Live search is degraded upstream; see [Provider audit](./provider_audit.md).
+- **Status**: Removed in issue #16 after the audit found degraded upstream search. See [Provider audit](./provider_audit.md).
 - **API**: REST API at `/api/v2/product/{code}` and `/api/v2/search`.
 - **Spanish coverage**: Contains many Spanish products with `ingredients_text_es`, `nutriments` (nutrition per 100 g), `brands`, and `categories_tags`.
-- **Guardrail behavior**: Search candidates are filtered through the evidence guardrail, and fetched products are validated before scoring. Anonymous requests are rate-limited, so a descriptive User-Agent is sent as required by Open Food Facts.
-- **Limitations**: Anonymous requests can still be rate-limited or unavailable under load. Bulk data remains freely downloadable for offline workflows.
+- **Guardrail behavior**: No longer reachable through the product-URL allowlist. A future connector must re-verify search relevance and the shared evidence guardrail before returning.
+- **Limitations**: Anonymous requests can be rate-limited or unavailable under load. Bulk data remains freely downloadable for offline workflows.
 
 ### BEDCA (Base de Datos Española de Composición de Alimentos)
 - **URL**: https://www.bedca.net/
